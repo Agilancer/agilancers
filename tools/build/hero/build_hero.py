@@ -42,9 +42,15 @@ def mirror(V, F):
     return V2, F[:, ::-1].copy()
 
 
-def sub(name, V, F, target, wfn=None):
-    """Decimate one sub-part and compute its skin weights."""
+def sub(name, V, F, target, wfn=None, subdiv=0):
+    """Decimate (or Catmull-Clark smooth) one sub-part and compute its skin weights."""
     obj = make_mesh('_tmp_' + name, V, F)
+    if subdiv:
+        import blender_util as BU
+        m = obj.modifiers.new('cc', 'SUBSURF'); m.levels = subdiv; m.render_levels = subdiv
+        m.boundary_smooth = 'PRESERVE_CORNERS'
+        BU.apply_modifiers(obj)
+        triangulate(obj)
     decimate(obj, target)
     triangulate(obj)
     V2, F2 = mesh_arrays(obj)
@@ -158,10 +164,10 @@ NOT_LIMBS = [b for b in BONES if not any(k in b for k in ['index', 'middle', 'ri
 # ---------------------------------------------------------------- head + ears
 # MakeHuman-generated head + neck (ears included), face photo warped onto its landmarks
 _mh = np.load(os.path.join(CACHE, 'mh_head.npz'))
-head_sub = sub('head', *load('head'), 12000, head_w)
+head_sub = sub('head', *load('head'), 30000, head_w, subdiv=1)      # MakeHuman's 'smooth' (4.4k-vertex head)
 _mode = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('texture_mode', 'photo')
 head = assemble('Head', [head_sub], dispatch(PT.paint_head_clean if _mode == 'clean' else PT.paint_head),
-                size=1024, rough=0.62, normal=0.9, detail_sigma=2.5, color=(0.72, 0.50, 0.38),
+                size=2048, rough=0.62, normal=0.9, detail_sigma=2.5, color=(0.72, 0.50, 0.38),
                 ao=dict(rays=48, max_dist=0.02, strength=0.55))
 
 # MakeHuman high-poly eyeballs with MakeHuman's brown iris texture
@@ -176,13 +182,22 @@ else:
     # MakeHuman's brown iris is very red under ACES: shift to a darker, less saturated brown
     from PIL import Image as _I
     e = np.asarray(_I.open(os.path.join(P.ROOT, 'build/makehuman/eyes/brown_eye.png')).convert('RGB')).astype(np.float32) / 255
+    # bigger iris (less white showing, like the client's): radial remap around both iris centres
+    _yy, _xx = np.mgrid[0:e.shape[0], 0:e.shape[1]].astype(np.float32)
+    _sx, _sy = _xx.copy(), _yy.copy()
+    for _cx, _cy in ((721.0, 299.7), (295.0, 721.7)):
+        _r = np.hypot(_xx - _cx, _yy - _cy); R0, k = 118.0, 1.18
+        f = np.where(_r < R0 * k, 1 / k, 1 / k + (1 - 1 / k) * np.clip((_r - R0 * k) / (R0 * 0.5), 0, 1))
+        m = _r < R0 * (k + 0.5)
+        _sx[m] = _cx + (_xx[m] - _cx) * f[m]; _sy[m] = _cy + (_yy[m] - _cy) * f[m]
+    e = e[np.clip(_sy.round().astype(int), 0, e.shape[0] - 1), np.clip(_sx.round().astype(int), 0, e.shape[1] - 1)]
     lum = e.mean(2, keepdims=True)
     sat = e.max(2, keepdims=True) - e.min(2, keepdims=True)
     iris = np.clip((sat - 0.12) / 0.15, 0, 1)
     tint = np.array([0.30, 0.20, 0.14])
-    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 0.42) * iris          # near black-brown iris
+    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 0.34) * iris          # near black-brown iris
     white = np.clip((lum - 0.55) / 0.2, 0, 1) * (1 - iris)
-    e2 = e2 * (1 - white) + e2 * np.array([0.84, 0.77, 0.74]) * white            # not paper-white sclera
+    e2 = e2 * (1 - white) + e2 * np.array([0.68, 0.60, 0.56]) * white            # not paper-white sclera
     from texlib import save_rgb as _sv
     _sv(os.path.join(TEXDIR, 'Eyes_albedo.jpg'), np.clip(e2, 0, 1), quality=94)
     eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.30))
@@ -227,19 +242,50 @@ def build_hair():
 
 
 def hair_cap():
-    """Long top hair as a shell grown from the scalp: ~3.5 mm on top, tapering
-    to nothing at the border with the buzzed sides (no hard edge)."""
+    """Hair as one shell grown from the scalp: the long top (~4 mm, lifted to
+    ~11 mm at the front) continuing into the clipper-short sides/back/temples
+    (~2.4 mm), so the head never reads bald from the front and there is no
+    hard edge where the two cuts meet. Ears stay bare. The MakeHuman scalp is
+    coarse, so the region is subdivided first and grown along smoothed normals
+    (no fins or folds)."""
+    import blender_util as BU
     V, F = head_sub['V'], head_sub['F']
     above = V[:, 1] - P.hair_line(V)
-    keep = (above[F] > -0.0005).all(1)
+    cover = np.maximum(PT.clipped_density(V), PT.smoothstep(-0.004, 0.0, above))
+    keep = (cover[F] > 0.30).all(1)
     Fc = F[keep]
     used = np.unique(Fc)
     remap = -np.ones(len(V), int); remap[used] = np.arange(len(used))
-    N = np_vertex_normals(V, F)
-    front = np.clip((V[used, 2] - P.HEAD_CZ) / 0.09, 0, 1)
-    t = (0.005 + 0.007 * front) * np.clip(above[used] / 0.025, 0, 1) ** 0.8      # 10-12 mm lift at the front
-    Vc = V[used] + N[used] * (t + 0.0003)[:, None]
-    return Vc, remap[Fc]
+    obj = make_mesh('_cap', V[used], remap[Fc])
+    m = obj.modifiers.new('sub', 'SUBSURF'); m.subdivision_type = 'SIMPLE'; m.levels = 1; m.render_levels = 1
+    BU.apply_modifiers(obj)
+    triangulate(obj)
+    V2, F2 = mesh_arrays(obj)
+    bpy.data.objects.remove(obj, do_unlink=True)
+    # base normals from the full head (smooth), interpolated by nearest original vertices, then smoothed on the cap
+    Nh = np_vertex_normals(V, F)
+    from scipy.spatial import cKDTree
+    dd, ii = cKDTree(V).query(V2, k=4)
+    w = 1.0 / np.maximum(dd, 1e-5); w /= w.sum(1, keepdims=True)
+    N2 = (Nh[ii] * w[..., None]).sum(1)
+    E = np.r_[F2[:, [0, 1]], F2[:, [1, 2]], F2[:, [2, 0]]]
+    for _ in range(6):
+        acc = N2.copy(); cnt = np.ones(len(V2))
+        np.add.at(acc, E[:, 0], N2[E[:, 1]]); np.add.at(cnt, E[:, 0], 1)
+        np.add.at(acc, E[:, 1], N2[E[:, 0]]); np.add.at(cnt, E[:, 1], 1)
+        N2 = acc / cnt[:, None]
+    N2 /= np.linalg.norm(N2, axis=1, keepdims=True)
+    above2 = V2[:, 1] - P.hair_line(V2)
+    cover2 = np.maximum(PT.clipped_density(V2), PT.smoothstep(-0.004, 0.0, above2))
+    front = np.clip((V2[:, 2] - P.HEAD_CZ) / 0.09, 0, 1)
+    lift = (0.0018 + 0.0072 * front) * PT.smoothstep(0.0, 0.026, above2)
+    t = 0.0024 * cover2 + lift
+    obj = make_mesh('_cap2', V2 + N2 * (t + 0.0003)[:, None], F2)
+    decimate(obj, 18000)
+    triangulate(obj)
+    V3, F3 = mesh_arrays(obj)
+    bpy.data.objects.remove(obj, do_unlink=True)
+    return V3, F3
 
 
 capV, capF = hair_cap()

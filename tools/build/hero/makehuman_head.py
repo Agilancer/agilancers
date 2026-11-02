@@ -140,6 +140,37 @@ def group_center(V, F, G, name):
     return V[idx].mean(0)
 
 
+def _ss(e0, e1, x):
+    t = np.clip((x - e0) / (e1 - e0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def warp(Y):
+    """Direct proportion fixes the MakeHuman targets can't reach (measured on the
+    client's frontal video frame, matched camera): a broader cranium that stays
+    wide above the brows instead of tapering to an egg, a fuller jaw/jowl line,
+    and a longer chin. Smooth, so the topology and the morphed features survive."""
+    import parts as P
+    w = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('warp', {})
+    Y = Y.copy()
+    ye = P.Y_EYE
+    rel = Y[:, 1] - ye
+    ax = np.abs(Y[:, 0])
+    # cranium: x grows from the eye line up (only the temples/ears near eye level, all of it from the forehead up)
+    kc = w.get('cranium_x', 0.0) * _ss(-0.005, 0.07, rel)
+    side_c = _ss(0.045, 0.07, ax) * (1 - _ss(0.025, 0.055, rel)) + _ss(0.025, 0.055, rel)
+    # jaw/jowls: x grows below the cheekbones, fading out on the neck; the mouth/chin centre stays put
+    kj = w.get('jaw_x', 0.0) * _ss(-0.005, -0.04, rel) * _ss(-0.150, -0.115, rel) * _ss(0.025, 0.060, ax)
+    Y[:, 0] *= 1 + kc * side_c + kj
+    # chin: stretch the face below the mouth line downward (front part only), fading out at the neck
+    cd = w.get('chin_drop', 0.0)
+    if cd:
+        front = _ss(-0.03, 0.05, Y[:, 2] - P.HEAD_CZ)
+        k = _ss(-0.055, -0.115, rel) * _ss(-0.165, -0.125, rel)
+        Y[:, 1] -= cd * k * front
+    return Y
+
+
 def build():
     base = fetch('3dobjs/base.obj', os.path.join(MH, 'base.obj'))
     V0, VT, F, FT, G = load_obj(base)
@@ -164,7 +195,7 @@ def build():
         return Y
     # ---- head + neck cut out of the body
     body = [k for k, g in enumerate(G) if g == 'body']
-    Vh = place(V)
+    Vh = warp(place(V))
     NECK_Z = -0.008
     rn_all = np.sqrt(Vh[:, 0] ** 2 + (Vh[:, 2] - NECK_Z) ** 2)
     keep = []
@@ -197,7 +228,7 @@ def build():
     print('eye faces', len(ET), 'cornea faces removed', int(cornea.sum()))
     ET, ETT = ET[~cornea], ETT[~cornea]
     EVm = fit_proxy(fetch('eyes/high-poly/high-poly.mhclo', os.path.join(MH, 'eyes', 'high-poly.mhclo')), V, len(EV))
-    eyes_V = place(EVm)
+    eyes_V = warp(place(EVm))
     inward = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('eyeball_inward', 0.0)
     eyes_V[:, 0] -= np.sign(eyes_V[:, 0]) * inward          # critics: the irises sat ~2 mm too far out
     # per-corner UVs for the eyes

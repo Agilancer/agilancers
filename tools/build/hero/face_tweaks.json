@@ -17,29 +17,45 @@
    -0.1155
   ],
   "brow_in_l": [
-   0.0165,
-   0.0165
+   0.016,
+   0.0135
   ],
   "brow_in_r": [
-   -0.0165,
-   0.0165
+   -0.016,
+   0.0135
   ],
   "brow_out_l": [
    0.0552,
-   0.0135
+   0.0118
   ],
   "brow_out_r": [
    -0.0552,
-   0.0135
+   0.0118
   ],
   "tip": [
    0.0,
    -0.029
+  ],
+  "mouth_l": [
+   0.0275,
+   -0.065
+  ],
+  "mouth_r": [
+   -0.0275,
+   -0.065
+  ],
+  "ala_l": [
+   0.0165,
+   -0.0423
+  ],
+  "ala_r": [
+   -0.0165,
+   -0.0423
   ]
  },
  "profile": {
   "tip": [
-   0.0165,
+   0.019,
    1.0
   ],
   "nasion": [
@@ -47,11 +63,11 @@
    0.8
   ],
   "ulip": [
-   0.0025,
+   0.0045,
    0.8
   ],
   "llip": [
-   0.002,
+   0.0035,
    0.8
   ],
   "pogonion": [
@@ -65,48 +81,55 @@
   "cheek/r-cheek-volume-incr": 0.15,
   "cheek/l-cheek-volume-incr": 0.15,
   "chin/chin-width-incr": 0.2,
-  "neck/neck-double-incr": 0.2,
-  "nose/nose-volume-incr": 0.2,
-  "mouth/mouth-lowerlip-volume-decr": 0.15,
+  "neck/neck-double-incr": 0.5,
   "eyes/r-eye-height2-decr": 0.25,
   "eyes/l-eye-height2-decr": 0.25,
   "eyes/r-eye-eyefold-down": 0.25,
   "eyes/l-eye-eyefold-down": 0.25,
-  "eyes/r-eye-bag-incr": 0.15,
-  "eyes/l-eye-bag-incr": 0.15,
-  "forehead/forehead-temple-incr": 0.3
+  "forehead/forehead-temple-incr": 0.3,
+  "mouth/mouth-lowerlip-volume-incr": 0.25,
+  "nose/nose-flaring-decr": 0.6,
+  "nose/nose-nostrils-width-decr": 0.5,
+  "nose/nose-width3-decr": 0.4,
+  "ears/r-ear-wing-incr": 0.8,
+  "ears/l-ear-wing-incr": 0.8,
+  "ears/r-ear-scale-incr": 0.45,
+  "ears/l-ear-scale-incr": 0.45,
+  "eyes/r-eye-scale-incr": 0.35,
+  "eyes/l-eye-scale-incr": 0.35,
+  "nose/nose-base-down": 0.6
  },
  "eyeball_inward": 0.0015,
  "skin": {
   "base": [
-   0.78,
-   0.555,
-   0.45
+   0.76,
+   0.52,
+   0.44
   ],
   "ruddy": [
-   0.8,
-   0.4,
-   0.34
+   0.76,
+   0.36,
+   0.32
   ],
   "lips": [
    0.62,
-   0.36,
+   0.33,
    0.33
   ],
   "brow": [
-   0.13,
-   0.1,
-   0.085
+   0.12,
+   0.095,
+   0.08
   ],
   "beard_light": [
-   0.68,
-   0.66,
-   0.64
+   0.72,
+   0.7,
+   0.67
   ],
   "beard_dark": [
-   0.2,
-   0.165,
-   0.145
+   0.26,
+   0.21,
+   0.18
   ]
  },
  "texture": {
@@ -135,16 +158,28 @@
    180
   ],
   [
-   1.77,
-   1.772,
-   1.776,
-   1.779,
    1.778,
+   1.777,
+   1.774,
+   1.772,
+   1.774,
    1.776,
    1.772,
    1.764,
    1.752,
    1.745
   ]
- ]
+ ],
+ "warp": {
+  "cranium_x": 0.22,
+  "jaw_x": 0.07,
+  "chin_drop": 0.008
+ },
+ "caps": {
+  "mouth/mouth-scale-depth-decr": 0.5,
+  "mouth/mouth-trans-backward": 0.3,
+  "nose/nose-base-up": 0.5,
+  "head/head-triangular": 0.0,
+  "mouth/mouth-upperlip-volume-decr": 0.5
+ }
 }

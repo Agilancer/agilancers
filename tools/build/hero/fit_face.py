@@ -174,7 +174,10 @@ def main():
     lam = np.array([LAMBDA * (3.0 if k.split('/')[0] in ('head', 'eyes') else 1.0) for k, _ in names])
     Areg = np.vstack([A, np.diag(lam)])
     breg = np.r_[-r0, np.zeros(A.shape[1])]
-    sol = lsq_linear(Areg, breg, bounds=(0, 1), lsmr_tol='auto')
+    # per-target caps (face_tweaks 'caps'): keep the solver off targets that read badly at full strength
+    caps = TWEAKS.get('caps', {})
+    ub = np.array([max(caps.get(k, 1.0), 1e-6) for k, _ in names])
+    sol = lsq_linear(Areg, breg, bounds=(np.zeros(len(ub)), ub), lsmr_tol='auto')
     w = sol.x
     r1 = r0 + A @ w
     print(f'targets {len(names)}  rms before {np.sqrt((r0**2).mean())*1000:.2f} mm  after {np.sqrt((r1**2).mean())*1000:.2f} mm')

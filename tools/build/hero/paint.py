@@ -274,7 +274,7 @@ def _hash01(Pt, cell):
 
 def beard_top(th):
     """Upper edge of the beard: diagonal from the sideburn down to ~2 cm above the mouth corner."""
-    return np.interp(th, [0, 25, 45, 62, 78, 95], [1.640, 1.652, 1.662, 1.676, 1.700, 1.705])
+    return np.interp(th, [0, 25, 45, 62, 78, 95], [1.638, 1.646, 1.656, 1.672, 1.695, 1.700])
 
 
 def _lm(k):
@@ -287,90 +287,171 @@ def _brow_mask(x, y, z, side):
     bi, bo = _lm(f'brow_in_{side}'), _lm(f'brow_out_{side}')
     ax_ = sg * x
     t = (ax_ - abs(bi[0]) + 0.004) / (abs(bo[0]) - abs(bi[0]) + 0.006)
-    yc = bi[1] + (bo[1] - bi[1]) * t + 0.0022 * np.sin(np.clip(t, 0, 1) * np.pi * 0.85)
-    half = np.interp(t, [0, 0.15, 0.6, 1.0], [0.0040, 0.0044, 0.0036, 0.0020])
+    yc = bi[1] + (bo[1] - bi[1]) * t + 0.0009 * np.sin(np.clip(t, 0, 1) * np.pi * 0.85)
+    half = np.interp(t, [0, 0.15, 0.6, 1.0], [0.0044, 0.0050, 0.0043, 0.0026])
     inside = smoothstep(-0.08, 0.10, t) * smoothstep(1.08, 0.90, t)
-    across = smoothstep(half + 0.0020, half - 0.0012, np.abs(y - yc))
+    across = smoothstep(half + 0.0028, half - 0.0018, np.abs(y - yc))
     return inside * across * smoothstep(0.03, 0.07, z - P.HEAD_CZ)
+
+
+def _aniso_hash(Pt, cell, off=0.0):
+    """Per-point random value on an anisotropic 3D grid (cell = (cx, cy, cz))."""
+    q = np.floor((Pt + off) / np.asarray(cell)).astype(np.int64)
+    h = (q[:, 0] * 73856093) ^ (q[:, 1] * 19349663) ^ (q[:, 2] * 83492791)
+    h = (h ^ (h >> 13)) * 1274126177
+    return ((h ^ (h >> 16)) & 0xFFFF).astype(np.float64) / 65535.0
+
+
+def value_noise(Pt, cell, seed=0.0):
+    """Smooth 3D value noise in [0, 1] (trilinear over a hashed lattice): blotchy
+    skin colour without grid artefacts."""
+    g = Pt / cell + seed
+    i0 = np.floor(g); f = g - i0; f = f * f * (3 - 2 * f)
+    out = 0.0
+    for dx in (0, 1):
+        for dy in (0, 1):
+            for dz in (0, 1):
+                q = (i0 + [dx, dy, dz]).astype(np.int64)
+                h = (q[:, 0] * 73856093) ^ (q[:, 1] * 19349663) ^ (q[:, 2] * 83492791)
+                h = (h ^ (h >> 13)) * 1274126177
+                v = ((h ^ (h >> 16)) & 0xFFFF).astype(np.float64) / 65535.0
+                w = (f[:, 0] if dx else 1 - f[:, 0]) * (f[:, 1] if dy else 1 - f[:, 1]) * (f[:, 2] if dz else 1 - f[:, 2])
+                out = out + v * w
+    return out
+
+
+def stubble(Pt, density, white, dark, light, cell=0.00042, layers=3, stretch=(1.0, 1.9, 1.0)):
+    """Short hairs as stippled strokes: returns (colour, coverage) per point.
+    density: fraction of cells holding a hair; white: chance a hair is grey/white;
+    stretch: cell aspect (hairs growing down = tall cells, brows = wide cells)."""
+    cov = np.zeros(len(Pt)); col = np.zeros((len(Pt), 3))
+    cv = cell * np.asarray(stretch)
+    for i in range(layers):
+        off = 0.000173 * (i + 1) * np.array([1.0, 0.61, 1.37])
+        r_on = _aniso_hash(Pt, cv, off)
+        r_c = _aniso_hash(Pt, cv, off + 0.0101)
+        on = (r_on < density / layers * 1.6).astype(float)
+        hc = np.where((r_c < white)[:, None], light[None, :] * (0.88 + 0.24 * r_c[:, None]), dark[None, :] * (0.85 + 0.4 * r_c[:, None]))
+        new = on * (1 - cov)
+        col += hc * new[:, None]; cov += new
+    col = col / np.maximum(cov, 1e-6)[:, None]
+    return col, cov
+
+
+def clipped_density(Pt):
+    """Where the clipper-short hair grows: sides and back below the long top,
+    temples, sideburns; never on the ears."""
+    x, y, z = Pt.T
+    th = np.degrees(np.abs(np.arctan2(x, z - P.HEAD_CZ)))
+    ear = np.zeros(len(x))
+    for side in ('L', 'R'):
+        c, h_, d_ = ear_info(side)
+        e = ((x - c[0]) / 0.016) ** 2 + ((y - c[1]) / (h_ * 0.60)) ** 2 + ((z - c[2]) / (d_ * 0.70)) ** 2
+        ear = np.maximum(ear, smoothstep(1.3, 0.9, e))
+    # lower border of the clipped hair by angle around the head (0 = front): temple corner, sideburn
+    # down to mid-ear, around the ear, behind the ear, nape
+    bottom = np.interp(th, [30, 38, 45, 52, 60, 70, 80, 88, 96, 110, 130, 180],
+                       [1.762, 1.742, 1.722, 1.705, 1.688, 1.672, 1.672, 1.700, 1.682, 1.642, 1.612, 1.600])
+    dens = smoothstep(28, 36, th) * smoothstep(bottom - 0.003, bottom + 0.006, y)
+    return np.clip(dens * (1 - ear), 0, 1)
+
+
+SIDE_DARK = np.array([0.27, 0.23, 0.20]); SIDE_LIGHT = np.array([0.62, 0.60, 0.58])
+
+
+def clipped_hair(Pt, base, dens):
+    """Clipper-cut sides: a soft grey-brown tone (short dense hair) with fine
+    lighter/darker hair texture, scalp barely showing."""
+    tone = np.array([0.46, 0.42, 0.39])[None, :] * (0.92 + 0.16 * value_noise(Pt, 0.006, 3.1)[:, None])
+    shade = base * (1 - 0.85 * dens[:, None]) + tone * 0.85 * dens[:, None]
+    col, cov = stubble(Pt, 0.9 * dens, 0.28, SIDE_DARK, SIDE_LIGHT, cell=0.00034, layers=3)
+    k = np.clip(cov * 0.45, 0, 1)[:, None]
+    return shade * (1 - k) + col * k
 
 
 def paint_head_clean(Pt, N):
     """Clean MakeHuman-style skin painted from the client's traits (no photo):
-    fair, ruddy skin, thick straight brows, lash lines, natural lips, soft
-    salt-and-pepper beard, clipped grey-brown sides."""
+    fair, ruddy skin, low thick straight brows, lash lines, natural lips,
+    stippled salt-and-pepper stubble (white chin), clipped grey-brown sides."""
     x, y, z = Pt.T
     th = np.degrees(np.abs(np.arctan2(x, z - P.HEAD_CZ)))
-    rnd = _hash01(Pt, 0.00045); rnd2 = _hash01(Pt + 0.37, 0.0007); rnd3 = _hash01(Pt - 0.21, 0.0016)
+    rnd = _hash01(Pt, 0.00045); rnd3 = _hash01(Pt - 0.21, 0.0016)
     T = CLIENT_SKIN
     skin = np.tile(np.array(T['base']), (len(x), 1))
-    # broad tonal variation: ruddy nose, cheeks, ears; slightly cooler/darker around the eyes
     def blob(c, r):
         return np.exp(-np.sum(((Pt - c) / r) ** 2, axis=1))
     tip, sub = _lm('tip'), _lm('subnasale')
-    red = 0.55 * blob(tip + [0, 0.002, -0.004], [0.016, 0.014, 0.02])
+    # ruddy: nose (strongest), broad cheeks, ears, a little on the forehead/chin
+    red = 0.95 * blob(tip + [0, 0.004, -0.006], [0.017, 0.020, 0.02])
     for sg in (-1, 1):
-        red += 0.45 * blob(np.array([sg * 0.040, P.Y_EYE - 0.032, 0.095]), [0.022, 0.020, 0.04])
-        red += 0.25 * blob(np.array([sg * 0.090, 1.69, 0.012]), [0.012, 0.03, 0.025])           # ears
-    skin = mix(skin, np.tile(np.array(T['ruddy']), (len(x), 1)), np.clip(red, 0, 0.8))
+        red += 0.70 * blob(np.array([sg * 0.042, P.Y_EYE - 0.036, 0.090]), [0.026, 0.024, 0.05])
+        red += 0.95 * blob(np.array([sg * 0.100, 1.69, 0.016]), [0.020, 0.036, 0.030])           # ears (red)
+    red += 0.22 + 0.30 * (value_noise(Pt, 0.007, 1.7) - 0.5) + 0.12 * (value_noise(Pt, 0.0022, 5.3) - 0.5)   # overall flush, blotchy
+    skin = mix(skin, np.tile(np.array(T['ruddy']), (len(x), 1)), np.clip(red, 0, 0.9))
     for side in ('l', 'r'):
         e = _lm(f'eye_{side}')
-        skin *= (1 - 0.10 * blob(e + [0, -0.004, 0.0], [0.020, 0.010, 0.03]))[:, None]
-    # pores / mottling
-    det = skin_detail(Pt, 0.55)[:, None] * 1.4 + (rnd3[:, None] - 0.5) * 0.03
+        skin *= (1 - 0.05 * blob(e + [0, -0.006, 0.0], [0.018, 0.008, 0.03]))[:, None]
+    det = skin_detail(Pt, 0.55)[:, None] * 1.0 + (value_noise(Pt, 0.0012, 9.1)[:, None] - 0.5) * 0.04
     skin = np.clip(skin * (1 + det), 0, 1)
-    # lips (natural, thin upper lip)
+    # lips: thin upper lip, fuller pink lower lip
     st, ml = _lm('stomion'), _lm('mouth_l')
     hw = abs(ml[0]) + 0.0015
     u = np.clip(np.abs(x) / hw, 0, 1.5)
     dy = y - st[1]
-    upper = smoothstep(0.0062 * (1 - u ** 2) + 0.0008, 0.0062 * (1 - u ** 2) - 0.0008, dy) * smoothstep(-0.0004, 0.0004, dy)
-    lower = smoothstep(-0.0088 * (1 - u ** 2) - 0.0008, -0.0088 * (1 - u ** 2) + 0.0008, dy) * smoothstep(0.0004, -0.0004, dy)
-    lips = np.clip((upper + lower) * (u < 1.0) * smoothstep(0.05, 0.09, z - P.HEAD_CZ), 0, 1)
-    skin = mix(skin, np.tile(np.array(T['lips']), (len(x), 1)), 0.65 * lips)
-    skin *= (1 - 0.45 * smoothstep(0.0009, 0.0, np.abs(dy)) * (u < 1.02) * smoothstep(0.05, 0.09, z - P.HEAD_CZ))[:, None]
-    # lash lines + upper-lid crease from the distance to the eyeball surface
+    upper = smoothstep(0.0050 * (1 - u ** 2) + 0.0008, 0.0050 * (1 - u ** 2) - 0.0008, dy) * smoothstep(-0.0004, 0.0004, dy)
+    lower = smoothstep(-0.0095 * (1 - u ** 2) - 0.0010, -0.0095 * (1 - u ** 2) + 0.0010, dy) * smoothstep(0.0004, -0.0004, dy)
+    frontal = smoothstep(0.05, 0.09, z - P.HEAD_CZ)
+    lips = np.clip((upper + lower) * (u < 1.0) * frontal, 0, 1)
+    skin = mix(skin, np.tile(np.array(T['lips']), (len(x), 1)), 0.75 * lips)
+    skin *= (1 - 0.30 * smoothstep(0.0008, 0.0, np.abs(dy)) * (u < 1.02) * frontal)[:, None]
+    # lash lines (upper only, soft) from the distance to the eyeball surface
     EV = np.load(os.path.join(P.ROOT, 'build/cache/mh_head.npz'))['EV']
     for sg in (-1, 1):
         E = EV[EV[:, 0] * sg > 0]
         c = E.mean(0); r = np.linalg.norm(E - c, axis=1).mean()
         dd = np.linalg.norm(Pt - c, axis=1) - r
-        up = smoothstep(c[1] - 0.003, c[1] + 0.002, y)
-        lash = smoothstep(0.0014, 0.0003, dd) * (0.55 * up + 0.15 * (1 - up))
+        up = smoothstep(c[1] - 0.002, c[1] + 0.003, y)
+        lash = smoothstep(0.0012, 0.0003, dd) * (0.50 * up + 0.06 * (1 - up))
         skin *= (1 - 0.6 * lash)[:, None]
-    # thick straight dark-brown brows with hair-direction streaks
+        # pink inner corner
+        cin = _lm(f'canthus_in_{"l" if sg > 0 else "r"}') if f'canthus_in_{"l" if sg > 0 else "r"}' in LM else None
+        if cin is not None:
+            skin = mix(skin, np.tile(np.array(T['ruddy']), (len(x), 1)), 0.35 * blob(np.asarray(cin), [0.003, 0.003, 0.004]))
+    # brows: low, thick, nearly straight, dense dark brown hair strokes
     brows = np.maximum(_brow_mask(x, y, z, 'l'), _brow_mask(x, y, z, 'r'))
-    streak = 0.5 + 0.5 * np.sin((np.abs(x) * 3800.0 + y * 1500.0) + rnd * 6.0)
-    bk = np.clip(brows * (0.68 + 0.18 * streak + 0.1 * rnd) * CLIENT.get('brows', 1.0), 0, 0.9)[:, None]
-    skin = skin * (1 - bk) + np.array(T['brow'])[None, :] * bk
-    # soft salt-and-pepper beard: moustache, chin (greyer), jaw, lower cheeks; fades on the neck
+    bcol, bcov = stubble(Pt, np.clip(brows * 1.5, 0, 1), 0.03, np.array(T['brow']), np.array([0.40, 0.36, 0.33]),
+                         cell=0.00032, layers=4, stretch=(3.2, 1.0, 3.2))
+    kb = np.clip(bcov * brows * 0.75 * CLIENT.get('brows', 1.0), 0, 0.85)[:, None]
+    tint = np.clip(brows * 0.6, 0, 1)[:, None]
+    skin = skin * (1 - tint) + (np.array(T['brow']) * 1.5)[None, :] * tint
+    skin = skin * (1 - kb) + bcol * kb
+    # beard: short salt-and-pepper stubble, near-white chin and under-lip patch, darker moustache,
+    # soft sparse upper border on the cheeks, continuing under the jaw onto the neck
     bt = beard_top(th)
-    beard = smoothstep(bt + 0.004, bt - 0.006, y) * smoothstep(1.548, 1.578, y)
+    beard = smoothstep(bt + 0.004, bt - 0.012, y)
+    beard = np.maximum(beard, smoothstep(sub[1] - 0.001, sub[1] - 0.005, y) * smoothstep(0.034, 0.024, np.abs(x)) * frontal)   # moustache
+    beard *= smoothstep(1.522, 1.552, y)
     beard *= np.where(th > 80, smoothstep(98, 82, th), 1.0)
-    beard *= 1 - lips * 0.95
-    nose_clear = 1 - smoothstep(sub[1] - 0.004, sub[1] + 0.002, y) * smoothstep(0.022, 0.012, np.abs(x)) * 0   # moustache allowed
-    grey = smoothstep(30, 10, th) * smoothstep(st[1] - 0.012, st[1] - 0.03, y)
-    wf = np.clip(0.18 + 0.30 * grey + 0.20 * (rnd2 < 0.3), 0, 1)[:, None]
-    hair_b = np.array([T['beard_light']]) * wf + np.array([T['beard_dark']]) * (1 - wf)
-    kb = np.clip(beard * nose_clear * (0.28 + 0.34 * rnd) * CLIENT.get('beard', 1.0), 0, 0.62)[:, None]
-    skin = skin * (1 - kb) + hair_b * kb
-    # ears get nothing else; clipped sides/back and temples (client video)
-    ear = np.zeros(len(x))
-    for side in ('L', 'R'):
-        c, h_, d_ = ear_info(side)
-        e = ((x - c[0]) / 0.020) ** 2 + ((y - c[1]) / (h_ * 0.62)) ** 2 + ((z - c[2]) / (d_ * 0.70)) ** 2
-        ear = np.maximum(ear, smoothstep(1.25, 0.85, e))
-    sides = smoothstep(46, 58, th) * smoothstep(1.595, 1.625, y)
-    temple = smoothstep(38, 50, th) * smoothstep(1.712, 1.726, y)
-    burns = smoothstep(56, 64, th) * smoothstep(84, 76, th) * smoothstep(1.650, 1.662, y)
-    dens = np.clip(np.maximum(np.maximum(sides, temple), burns) * (1 - ear * 0.97), 0, 1)
-    side_c = (np.array([[0.36, 0.30, 0.26]]) * 0.72 + np.array([[0.58, 0.56, 0.54]]) * 0.28) * (0.9 + 0.2 * rnd[:, None])
-    k = np.clip(dens * (0.78 + 0.08 * rnd), 0, 0.88)[:, None]
-    scalp = skin * (1 - k) + side_c * k
+    beard *= 1 - np.clip(lips * 1.4, 0, 1)
+    lipline = st[1] + 0.0035 + 0.004 * (np.abs(x) / 0.03) ** 2           # follows the curve of the upper lip
+    mous = (smoothstep(lipline - 0.0005, lipline + 0.004, y) * smoothstep(sub[1] + 0.001, sub[1] - 0.004, y)
+            * smoothstep(0.042, 0.016, np.abs(x)) * frontal * (0.75 + 0.25 * value_noise(Pt, 0.002, 4.4)))
+    chin = smoothstep(st[1] - 0.004, st[1] - 0.012, y) * smoothstep(0.040, 0.018, np.abs(x)) * smoothstep(1.555, 1.575, y)
+    white = np.clip(0.22 + 0.32 * chin - 0.20 * mous + 0.08 * smoothstep(45, 75, th), 0.06, 0.65)
+    dens = np.clip(beard * (0.72 + 0.28 * mous) * CLIENT.get('beard', 1.0), 0, 1)
+    bc, bcv = stubble(Pt, dens, white, np.array(T['beard_dark']), np.array(T['beard_light']), cell=0.00036)
+    tone = mix(np.tile(np.array([0.40, 0.33, 0.29]), (len(x), 1)), np.tile(np.array([0.62, 0.58, 0.55]), (len(x), 1)), white)
+    shadow = np.clip(dens * 0.55, 0, 1)[:, None]
+    skin = skin * (1 - shadow) + tone * shadow
+    k = np.clip(bcv * 0.38, 0, 1)[:, None]
+    skin = skin * (1 - k) + bc * k
+    skin *= (1 - 0.20 * mous * beard)[:, None]                 # darker moustache
+    # clipped sides/back, temples, sideburns
+    dside = clipped_density(Pt)
+    scalp = clipped_hair(Pt, skin, dside)
     top = smoothstep(P.hair_line(Pt) - 0.004, P.hair_line(Pt) + 0.006, y)
     out = mix(scalp, paint_hair(Pt, N), top)
-    band = smoothstep(P.hair_line(Pt) - 0.009, P.hair_line(Pt) - 0.0005, y) * smoothstep(48, 30, th)
-    kh = np.clip(band * (0.30 + 0.25 * rnd), 0, 0.6)[:, None]
-    return out * (1 - kh) + np.array([0.30, 0.25, 0.21])[None, :] * kh
+    return np.clip(out, 0, 1)
 
 
 CLIENT_SKIN = dict(base=[0.80, 0.60, 0.50], ruddy=[0.80, 0.45, 0.40], lips=[0.66, 0.42, 0.40],
@@ -574,28 +655,30 @@ _STRANDS = np.random.default_rng(11).random(4096)
 
 def paint_hair(Pt, N):
     """Long top hair combed flat straight back into the bun (client's video):
-    fine strand clumps converging on the bun, ash brown with grey strands."""
+    fine strands converging on the bun, dark ash brown with sparse grey; below
+    the hair line the same shell carries the clipper-short sides."""
     d = Pt - HAIR_B
     fwd = np.array([0, -0.25, 1.0]); fwd /= np.linalg.norm(fwd)
     a = np.arctan2(d[:, 0], d @ fwd)
     dist = np.linalg.norm(d, axis=1)
-    lat = a * 0.085 + 0.0015 * np.sin(dist * 55.0 + a * 4.0)        # metres across the flow
-    f = lat / 0.0011 + 1000.3
-    i0 = np.floor(f).astype(int); t = f - i0
-    t = t * t * (3 - 2 * t)
-    r = _STRANDS[i0 % 4096] * (1 - t) + _STRANDS[(i0 + 1) % 4096] * t
-    f2 = lat / 0.0042 + 500.7
-    j0 = np.floor(f2).astype(int); t2 = f2 - j0; t2 = t2 * t2 * (3 - 2 * t2)
-    clump = _STRANDS[(j0 * 7) % 4096] * (1 - t2) + _STRANDS[((j0 + 1) * 7) % 4096] * t2
-    base = np.array([0.255, 0.212, 0.185]); dark = np.array([0.14, 0.12, 0.105]); grey = np.array([0.58, 0.56, 0.54])
-    along = 0.5 + 0.5 * np.sin(dist * 90.0 + r * 6.0)
-    col = base[None, :] * (0.62 + 0.75 * r[:, None]) * (0.7 + 0.6 * clump[:, None]) * (0.9 + 0.2 * along[:, None])
-    col = mix(col, dark[None, :].repeat(len(r), 0), 0.5 * (1 - clump) ** 2)
-    g = (r > 0.72) & (clump > 0.25)                     # ~25-30 % grey strands
-    col = mix(col, grey[None, :].repeat(len(r), 0), 0.6 * g)
-    # roots darker right at the soft border
-    edge = 1 - smoothstep(0.0, 0.010, Pt[:, 1] - P.hair_line(Pt))
-    return col * (1 - 0.25 * edge[:, None])
+    lat = a * np.maximum(dist, 0.03) + 0.0008 * np.sin(dist * 70.0 + a * 5.0)      # metres across the flow
+    def band(w, salt):
+        f = lat / w + 1000.3 + salt
+        i0 = np.floor(f).astype(int); t = f - i0; t = t * t * (3 - 2 * t)
+        return _STRANDS[(i0 * 7 + int(salt)) % 4096] * (1 - t) + _STRANDS[((i0 + 1) * 7 + int(salt)) % 4096] * t
+    r = band(0.00045, 0); r2 = band(0.00028, 17); clump = band(0.0026, 101)
+    base = np.array([0.215, 0.180, 0.155]); dark = np.array([0.11, 0.095, 0.085]); grey = np.array([0.52, 0.50, 0.48])
+    along = 0.5 + 0.5 * np.sin(dist * 140.0 + r * 6.0)
+    col = base[None, :] * (0.72 + 0.50 * r[:, None]) * (0.80 + 0.40 * clump[:, None]) * (0.92 + 0.16 * along[:, None])
+    col = mix(col, dark[None, :].repeat(len(r), 0), 0.45 * (1 - clump) ** 2)
+    g = (r2 > 0.86).astype(float) * smoothstep(0.2, 0.5, clump)               # ~10 % fine grey strands
+    col = mix(col, grey[None, :].repeat(len(r), 0), 0.55 * g)
+    above = Pt[:, 1] - P.hair_line(Pt)
+    edge = 1 - smoothstep(0.0, 0.010, above)
+    col = col * (1 - 0.20 * edge[:, None])
+    dens = np.maximum(clipped_density(Pt), 0.6)
+    side = clipped_hair(Pt, np.tile(np.array([0.55, 0.42, 0.36]), (len(Pt), 1)), dens)
+    return mix(side, col, smoothstep(-0.004, 0.003, above))
 
 
 def paint_bun(Pt, N):

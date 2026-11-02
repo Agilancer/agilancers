@@ -41,8 +41,10 @@ let views = (q.get('views') || 'front,back,left,q34').split(',');
 function setView(k) {
   if (k === 'cmpclose') { cam.position.set(0, 1.672, 0.40); cam.lookAt(0, 1.672, 0.03); return; }
   if (k.startsWith('cmp')) {          // likeness comparison: camera orbiting the face at selfie distance
-    const yaw = THREE.MathUtils.degToRad(+k.slice(3)); const c = new THREE.Vector3(0, 1.675, 0.035), d = 0.52;
-    cam.position.set(c.x + Math.sin(yaw) * d, c.y + 0.02, c.z + Math.cos(yaw) * d); cam.lookAt(c); return;
+    // cd: camera distance, drop: how far below the face the phone was (client's video looks slightly up at him)
+    const yaw = THREE.MathUtils.degToRad(+k.slice(3)); const c = new THREE.Vector3(0, 1.675, 0.035);
+    const d = +(q.get('cd') || 0.52), drop = +(q.get('drop') || 0);
+    cam.position.set(c.x + Math.sin(yaw) * d, c.y + 0.02 - drop, c.z + Math.cos(yaw) * d); cam.lookAt(c); return;
   }
   const [p, t] = VIEWS[k] || JSON.parse(k); cam.position.set(...p); cam.lookAt(...t);
 }
