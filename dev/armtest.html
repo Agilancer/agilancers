@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#222}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/tsl":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"}}</script>
+</head><body><script type="module">
+import * as THREE from 'three/webgpu';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL: true });
+renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement); await renderer.init();
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x30333a);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2.5));
+const dl = new THREE.DirectionalLight(0xffffff, 2); dl.position.set(2, 3, 3); scene.add(dl);
+const gltf = await new GLTFLoader().loadAsync('../assets/models/agilancer_hero.glb');
+scene.add(gltf.scene);
+let sk; gltf.scene.traverse(o => { if (o.isSkinnedMesh) sk = o; if (o.userData?.cloth) o.visible = false; });
+const skel = sk.skeleton;
+const socket = (name) => { const i = skel.bones.findIndex(b => b.name === name); const g = new THREE.Group(); g.matrixAutoUpdate = false; g.matrix.multiplyMatrices(skel.boneInverses[i], sk.bindMatrix); skel.bones[i].add(g); return g; };
+const G = JSON.parse(q.get('grip') || '[-0.845,1.408,-0.068]');
+const A = new THREE.Vector3(...JSON.parse(q.get('axis') || '[-0.3,0,1]')).normalize();
+const L = 1.85, back = 0.62;
+const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, L, 12), new THREE.MeshStandardMaterial({ color: 0xcc3333 }));
+const tip = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.25, 12), new THREE.MeshStandardMaterial({ color: 0xffdd33 }));
+pole.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), A); tip.quaternion.copy(pole.quaternion);
+pole.position.set(...G).addScaledVector(A, L / 2 - back); tip.position.set(...G).addScaledVector(A, L - back + 0.12);
+socket('hand_r').add(pole, tip);
+const SC = JSON.parse(q.get('shield') || '[0.60,1.495,-0.068]');
+const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.03, 6), new THREE.MeshStandardMaterial({ color: 0x3366cc }));
+sh.position.set(...SC); // cylinder axis +y = shield normal (dorsal)
+const mark = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.2), new THREE.MeshStandardMaterial({ color: 0xffffff })); mark.position.set(SC[0], SC[1] + 0.03, SC[2] + 0.2); // marks shield "up" (+z)
+socket('lowerarm_l').add(sh, mark);
+const mixer = new THREE.AnimationMixer(gltf.scene);
+const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.05, 50);
+const shots = (q.get('shots') || 'Idle_Shield_Loop@0.5').split(',');
+const VIEW = { f: [[0.8, 1.4, 3.6], [0, 1.1, 0]], s: [[3.6, 1.4, 0.6], [0, 1.1, 0]], b: [[-1.8, 1.6, -3.2], [0, 1.1, 0]] };
+window.__views = shots;
+window.__setView = async (k) => {
+  const [nameT, v = 'f'] = k.split(':'); const [name, t] = nameT.split('@');
+  mixer.stopAllAction(); const a = mixer.clipAction(gltf.animations.find(c => c.name === name)); a.play(); mixer.setTime(+t);
+  gltf.scene.updateMatrixWorld(true);
+  cam.position.set(...VIEW[v][0]); cam.lookAt(...VIEW[v][1]); renderer.render(scene, cam);
+  await new Promise(r => setTimeout(r, 120));
+};
+renderer.setAnimationLoop(() => renderer.render(scene, cam));
+window.__done = true;
+</script></body></html>

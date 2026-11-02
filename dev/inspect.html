@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#333}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/tsl":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"}}</script>
+</head><body><script type="module">
+import * as THREE from 'three/webgpu';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL: true });
+renderer.setSize(1280, 800); document.body.appendChild(renderer.domElement);
+await renderer.init();
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x555555);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2.0));
+const dl = new THREE.DirectionalLight(0xffffff, 2); dl.position.set(2,3,4); scene.add(dl);
+const gltf = await new GLTFLoader().loadAsync('../assets/models/UAL2_Standard.glb');
+const root = gltf.scene; scene.add(root);
+const res = { bones: {}, meshes: [] };
+root.updateMatrixWorld(true);
+root.traverse(o => { if (o.isBone) { const p = o.getWorldPosition(new THREE.Vector3()); const q=o.getWorldQuaternion(new THREE.Quaternion()); res.bones[o.name] = { p: p.toArray().map(v=>+v.toFixed(4)), q: q.toArray().map(v=>+v.toFixed(4)), parent: o.parent?.name }; }
+  if (o.isMesh) { o.geometry.computeBoundingBox(); res.meshes.push({ name: o.name, mat: o.material.name, count: o.geometry.attributes.position.count, bbox: [o.geometry.boundingBox.min.toArray(), o.geometry.boundingBox.max.toArray()], scale: o.getWorldScale(new THREE.Vector3()).toArray(), color: o.material.color?.getHexString() }); } });
+const q = new URLSearchParams(location.search);
+const anim = q.get('anim');
+if (anim) { const mixer = new THREE.AnimationMixer(root); const clip = gltf.animations.find(a => a.name === anim); mixer.clipAction(clip).play(); mixer.setTime(+(q.get('t')||0)); }
+res.clips = gltf.animations.map(a => [a.name, +a.duration.toFixed(2)]);
+const cam = new THREE.PerspectiveCamera(30, 1280/800, 0.01, 100);
+const views = { front:[0,1,4.5], side:[4.5,1,0], back:[0,1,-4.5], head:[0,1.65,1.2] };
+const v = views[q.get('view')||'front']; cam.position.set(...v); cam.lookAt(0, q.get('view')==='head'?1.6:0.9, 0);
+renderer.setAnimationLoop(() => renderer.render(scene, cam));
+window.__views = Object.keys(views);
+window.__setView = async (k) => { cam.position.set(...views[k]); cam.lookAt(0, k==='head'?1.6:0.9, 0); await new Promise(r=>setTimeout(r,100)); };
+window.__result = res; window.__done = true;
+</script></body></html>

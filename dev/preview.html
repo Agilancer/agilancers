@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#2b2d31;overflow:hidden}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/tsl":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"}}</script>
+</head><body><script type="module">
+// Dev-only multi-view preview used by the headless screenshot harness.
+import * as THREE from 'three/webgpu';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+const q = new URLSearchParams(location.search);
+const W = innerWidth, H = innerHeight;
+const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL: q.get('gpu') !== '1' });
+renderer.setSize(W, H); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+await renderer.init();
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x2b2d31);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.55;
+const key = new THREE.DirectionalLight(0xfff1e0, 2.4); key.position.set(1.5, 3, 2.5); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -1.5, right: 1.5, top: 2.2, bottom: -0.2, near: 0.1, far: 10 }); key.shadow.bias = -0.0005; key.shadow.normalBias = 0.02;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xb8d0ff, 1.2); rim.position.set(-2, 2.5, -2.5); scene.add(rim);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(3, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.9 }));
+ground.receiveShadow = true; scene.add(ground);
+const gltf = await new GLTFLoader().loadAsync(q.get('glb') || '../build/hero_preview.glb');
+const root = gltf.scene; scene.add(root);
+root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (o.material.name.includes('Coat') || o.name.includes('Coat')) o.material.side = THREE.DoubleSide; } });
+const hide = (q.get('hide') || '').split(',').filter(Boolean);
+root.traverse(o => { if (o.isMesh && hide.some(h => o.name.startsWith(h))) o.visible = false; });
+const mixer = new THREE.AnimationMixer(root);
+const anim = q.get('anim');
+if (anim) { const clip = gltf.animations.find(a => a.name === anim); const act = mixer.clipAction(clip); act.play(); mixer.setTime(+(q.get('t') || 0)); }
+root.updateMatrixWorld(true);
+const cam = new THREE.PerspectiveCamera(+(q.get('fov') || 28), W / H, 0.01, 50);
+const VIEWS = {
+  front: [[0, 1.0, 4.6], [0, 0.95, 0]], back: [[0, 1.0, -4.6], [0, 0.95, 0]], left: [[4.6, 1.0, 0], [0, 0.95, 0]], right: [[-4.6, 1.0, 0], [0, 0.95, 0]],
+  q34: [[2.6, 1.3, 3.6], [0, 0.95, 0]], q34b: [[-2.8, 1.3, -3.4], [0, 0.95, 0]],
+  face: [[0, 1.69, 0.62], [0, 1.69, 0]], eyes: [[0, 1.70, 0.35], [0, 1.70, 0]], eyesside: [[0.3, 1.70, 0.12], [0, 1.70, 0.1]], face34: [[0.42, 1.71, 0.46], [0, 1.69, 0]], headside: [[0.62, 1.70, 0.0], [0, 1.70, 0]], headback: [[-0.3, 1.80, -0.55], [0, 1.72, 0]],
+  handL: [[0.86, 1.62, 0.25], [0.84, 1.44, -0.06]], torso: [[0, 1.25, 1.5], [0, 1.2, 0]], feet: [[0.5, 0.35, 1.0], [0, 0.1, 0]],
+};
+let views = (q.get('views') || 'front,back,left,q34').split(',');
+function setView(k) { const [p, t] = VIEWS[k] || JSON.parse(k); cam.position.set(...p); cam.lookAt(...t); }
+setView(views[0]);
+renderer.setAnimationLoop(() => renderer.render(scene, cam));
+window.__views = views;
+window.__setView = async (k) => { setView(k); await new Promise(r => setTimeout(r, 120)); };
+window.__done = true;
+</script></body></html>
