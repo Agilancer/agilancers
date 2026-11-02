@@ -76,6 +76,9 @@ export class ClothCPU {
         let tx = x - src[a], ty = y - src[a + 1], tz = z - src[a + 2];
         const tl = Math.hypot(tx, ty, tz);
         if (tl > maxd) { const f = maxd / tl; x = src[a] + tx * f; y = src[a + 1] + ty * f; z = src[a + 2] + tz * f; }
+        // a coat hangs from its seam: never above it along the body's up axis (no flipping over the shoulders)
+        { const U = P.up, h = (x - src[a]) * U[0] + (y - src[a + 1]) * U[1] + (z - src[a + 2]) * U[2] - P.aboveSeam;
+          if (h > 0) { x -= U[0] * h; y -= U[1] * h; z -= U[2] * h; } }
         // capsules
         for (let c = 0; c < this.numColliders; c++) {
           const C = this.colliders, b = c * 8;

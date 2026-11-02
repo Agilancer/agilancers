@@ -20,13 +20,15 @@ export const DEFAULT_CLOTH_PARAMS = {
   thickness: 0.012,
   ground: 0.01,
   tetherSlack: 1.02,
+  up: [0, 1, 0],          // body up axis (updated every frame from the skeleton)
+  aboveSeam: 0.04,        // how far cloth may rise above its seam row
 };
 
 export class CoatCloth {
   constructor({ renderer, clothMesh, useGPU, params = {} }) {
     this.renderer = renderer;
     this.source = clothMesh;
-    this.params = { ...DEFAULT_CLOTH_PARAMS, ...params, wind: [...(params.wind || DEFAULT_CLOTH_PARAMS.wind)] };
+    this.params = { ...DEFAULT_CLOTH_PARAMS, ...params, wind: [...(params.wind || DEFAULT_CLOTH_PARAMS.wind)], up: [0, 1, 0] };
     this.topo = buildTopology(clothMesh);
     this.useGPU = useGPU;
     this.solver = useGPU ? new ClothGPU(renderer, this.topo, this.params) : new ClothCPU(this.topo, this.params);
@@ -44,6 +46,8 @@ export class CoatCloth {
 
     // colliders: bone + endpoints expressed in that bone's bind space
     const skel = clothMesh.skeleton;
+    this._pelvis = skel.bones.find((b) => b.name === 'pelvis');
+    this._neck = skel.bones.find((b) => b.name === 'neck_01');
     this.colliders = COLLIDERS.map(([bone, ax, ay, az, bx, by, bz, r]) => {
       const bi = skel.bones.findIndex((b) => b.name === bone);
       const toBone = new THREE.Matrix4().multiplyMatrices(skel.boneInverses[bi], clothMesh.bindMatrix);
@@ -111,6 +115,10 @@ export class CoatCloth {
 
   update(frameDt) {
     frameDt = Math.min(frameDt, 1 / 20);
+    const a = new THREE.Vector3().setFromMatrixPosition(this._pelvis.matrixWorld);
+    const b = new THREE.Vector3().setFromMatrixPosition(this._neck.matrixWorld);
+    const up = b.sub(a).normalize();
+    this.params.up[0] = up.x; this.params.up[1] = up.y; this.params.up[2] = up.z;
     this._a0.set(this._a1);
     this._skinned(this._a1, true);
     this._updateColliders();

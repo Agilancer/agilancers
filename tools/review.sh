@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 # Render the review package used by the critics: tools/review.sh <outdir>
 set -e
-OUT=${1:-build/review}; mkdir -p "$OUT"; rm -f "$OUT"/*.png
+OUT=${1:-build/review}; mkdir -p "$OUT"
+ONLY=${ONLY:-turn close heavy dash jump wire arms}   # e.g. ONLY="heavy dash" to re-render some sections
+want() { [[ " $ONLY " == *" $1 "* ]]; }
 cd "$(dirname "$0")/.."
 shot() { timeout 900 node tools/shot.cjs "$1" "$OUT/$2.png" ${3:-560} ${4:-700} --noshot=1 --timeout=800000 >/dev/null 2>&1 || echo "shot failed: $2"; }
-shot "index.html?gl=1&capture&anim=Idle_Shield_Loop&settle=2.5&views=front,q34,left,back,q34b" turn
-shot "index.html?gl=1&capture&anim=Idle_Shield_Loop&settle=2.5&views=face,face34,headback,torso" close 600 600
+want turn && shot "index.html?gl=1&capture&anim=Idle_Shield_Loop&settle=2.5&views=front,q34,left,back,q34b" turn
+want close && shot "index.html?gl=1&capture&anim=Idle_Shield_Loop&settle=2.5&views=face,face34,headback,torso" close 600 600
 V=""; for i in 1 2 3 4 5 6 7 8; do v=q34b; [ $i -gt 4 ] && v=back; [ $i -gt 6 ] && v=q34; V="$V,adv0.38_$v~$i"; done
-shot "index.html?gl=1&capture&anim=Sword_Heavy_Combo&settle=0.8&views=${V#,}" heavy 480 600
+want heavy && shot "index.html?gl=1&capture&anim=Sword_Heavy_Combo&settle=0.8&views=${V#,}" heavy 480 600
 V=""; for i in 1 2 3 4 5 6; do V="$V,adv0.22_q34l~$i"; done
-shot "index.html?gl=1&capture&rm&follow&anim=Sword_Dash&settle=0.3&views=${V#,}" dash 480 600
+want dash && shot "index.html?gl=1&capture&rm&follow&anim=Sword_Dash&settle=0.3&views=${V#,}" dash 480 600
 V=""; for i in 1 2 3 4 5 6; do V="$V,adv0.3_right~$i"; done
-shot "index.html?gl=1&capture&rm&follow&anim=NinjaJump_Start&settle=0.2&views=${V#,}" jump 480 600
-shot "index.html?gl=1&capture&anim=A_TPose&tpose&settle=0.5&wire&views=front,q34" wire 700 700
-shot "dev/armsheet.html" arms 1400 700
+want jump && shot "index.html?gl=1&capture&rm&follow&anim=NinjaJump_Start&settle=0.2&views=${V#,}" jump 480 600
+want wire && shot "index.html?gl=1&capture&anim=A_TPose&tpose&settle=0.5&wire&views=front,q34" wire 700 700
+want arms && shot "dev/armsheet.html" arms 1400 700
 python3 - "$OUT" <<'PY'
 import sys, glob, os, re
 from PIL import Image

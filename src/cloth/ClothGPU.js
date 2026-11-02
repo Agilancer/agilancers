@@ -35,6 +35,7 @@ export class ClothGPU {
       wind: uniform(new THREE.Vector3(...params.wind)), relax: uniform(params.relax),
       thickness: uniform(params.thickness), ground: uniform(params.ground), slack: uniform(params.tetherSlack),
       numColliders: uniform(0, 'int'), shift: uniform(new THREE.Vector3()),
+      up: uniform(new THREE.Vector3(0, 1, 0)), aboveSeam: uniform(params.aboveSeam),
     };
     this._build();
   }
@@ -90,6 +91,9 @@ export class ClothGPU {
         const tl = length(td);
         const maxd = pt.z.mul(u.slack);
         If(tl.greaterThan(maxd), () => { x.assign(a.add(td.mul(maxd.div(tl)))); });
+        // never above the seam along the body's up axis (no flipping over the shoulders)
+        const hUp = dot(x.sub(a), u.up).sub(u.aboveSeam);
+        If(hUp.greaterThan(0), () => { x.subAssign(u.up.mul(hUp)); });
         // capsules
         Loop(MAX_COLLIDERS, ({ i: c }) => {
           If(int(c).lessThan(u.numColliders), () => {
@@ -154,6 +158,7 @@ export class ClothGPU {
     u.gravity.value = P.gravity; u.damping.value = P.damping; u.air.value = P.airDrag;
     u.wind.value.set(...P.wind); u.relax.value = P.relax; u.thickness.value = P.thickness;
     u.slack.value = P.tetherSlack; u.ground.value = P.ground;
+    u.up.value.set(...P.up); u.aboveSeam.value = P.aboveSeam;
     const r = this.renderer;
     r.compute(this.kIntegrate);
     const iters = P.iterations + (P.iterations % 2);   // even -> result ends in posA

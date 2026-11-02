@@ -91,8 +91,7 @@ export function buildTopology(skinnedMesh) {
 // Capsule colliders in bind-pose model space, rigidly attached to bones.
 // [bone, ax, ay, az, bx, by, bz, radius]
 export const COLLIDERS = [
-  ['spine_03', -0.069, 1.460, -0.021, 0.069, 1.460, -0.021, 0.166],
-  ['spine_03', -0.047, 1.400, -0.019, 0.047, 1.400, -0.019, 0.173],
+  ['spine_03', -0.047, 1.390, -0.019, 0.047, 1.390, -0.019, 0.150],
   ['spine_03', -0.027, 1.340, -0.015, 0.027, 1.340, -0.015, 0.172],
   ['spine_02', -0.036, 1.280, -0.006, 0.036, 1.280, -0.006, 0.160],
   ['spine_02', -0.027, 1.220, 0.013, 0.027, 1.220, 0.013, 0.126],
