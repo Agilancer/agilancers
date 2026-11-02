@@ -76,7 +76,7 @@ hero.traverse((o) => {
   if (o.isMesh) {
     o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
     const m = o.material;
-    if (m.name === 'M_Hair') { m.roughness = 0.58; m.envMapIntensity = 0.6; }
+    if (m.name === 'M_Hair') { m.envMapIntensity = 0.5; }
     if (m.name === 'M_Head' || m.name === 'M_Arms') { m.roughness = 0.6; }
     if (m.normalMap) m.normalScale.set(0.8, 0.8);
   }
