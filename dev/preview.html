@@ -38,7 +38,14 @@ const VIEWS = {
   handL: [[0.86, 1.62, 0.25], [0.84, 1.44, -0.06]], torso: [[0, 1.25, 1.5], [0, 1.2, 0]], feet: [[0.5, 0.35, 1.0], [0, 0.1, 0]],
 };
 let views = (q.get('views') || 'front,back,left,q34').split(',');
-function setView(k) { const [p, t] = VIEWS[k] || JSON.parse(k); cam.position.set(...p); cam.lookAt(...t); }
+function setView(k) {
+  if (k === 'cmpclose') { cam.position.set(0, 1.672, 0.40); cam.lookAt(0, 1.672, 0.03); return; }
+  if (k.startsWith('cmp')) {          // likeness comparison: camera orbiting the face at selfie distance
+    const yaw = THREE.MathUtils.degToRad(+k.slice(3)); const c = new THREE.Vector3(0, 1.675, 0.035), d = 0.52;
+    cam.position.set(c.x + Math.sin(yaw) * d, c.y + 0.02, c.z + Math.cos(yaw) * d); cam.lookAt(c); return;
+  }
+  const [p, t] = VIEWS[k] || JSON.parse(k); cam.position.set(...p); cam.lookAt(...t);
+}
 setView(views[0]);
 renderer.setAnimationLoop(() => renderer.render(scene, cam));
 window.__views = views;
