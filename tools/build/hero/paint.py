@@ -430,7 +430,9 @@ def paint_head_clean(Pt, N):
     bt = beard_top(th)
     beard = smoothstep(bt + 0.004, bt - 0.012, y)
     beard = np.maximum(beard, smoothstep(sub[1] - 0.001, sub[1] - 0.005, y) * smoothstep(0.034, 0.024, np.abs(x)) * frontal)   # moustache
-    beard *= smoothstep(1.522, 1.552, y)
+    # lower border: a little under the chin in front, following the jaw line up to the jaw angle on the sides
+    bb = np.interp(th, [0, 30, 50, 70, 90], [1.546, 1.553, 1.574, 1.598, 1.624])
+    beard *= smoothstep(bb - 0.008, bb + 0.006, y)
     beard *= np.where(th > 80, smoothstep(98, 82, th), 1.0)
     beard *= 1 - np.clip(lips * 1.4, 0, 1)
     lipline = st[1] + 0.0035 + 0.004 * (np.abs(x) / 0.03) ** 2           # follows the curve of the upper lip
