@@ -13,7 +13,7 @@ const BASE = q.get('base') || './assets/models/';
 
 // ------------------------------------------------------------------ renderer / scene
 const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL: q.get('gl') === '1' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, innerWidth < 700 ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -66,9 +66,34 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 
 // ------------------------------------------------------------------ hero
 const loader = new GLTFLoader();
+
+// Hosts that do not serve .glb get "<file>.b64.txt" (set window.AGILANCER_B64 in the page).
+const B64 = new Uint8Array(128); 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.split('').forEach((c, i) => { B64[c.charCodeAt(0)] = i; });
+function decodeBase64(txt) {
+  txt = txt.replace(/[^A-Za-z0-9+/]/g, '');
+  const n = txt.length, out = new Uint8Array(Math.floor(n * 3 / 4));
+  let o = 0;
+  for (let i = 0; i + 3 < n; i += 4) {
+    const v = (B64[txt.charCodeAt(i)] << 18) | (B64[txt.charCodeAt(i + 1)] << 12) | (B64[txt.charCodeAt(i + 2)] << 6) | B64[txt.charCodeAt(i + 3)];
+    out[o++] = v >> 16; out[o++] = (v >> 8) & 255; out[o++] = v & 255;
+  }
+  const rem = n % 4;
+  if (rem) {
+    const i = n - rem;
+    const v = (B64[txt.charCodeAt(i)] << 18) | (B64[txt.charCodeAt(i + 1)] << 12) | (rem > 2 ? B64[txt.charCodeAt(i + 2)] << 6 : 0);
+    out[o++] = v >> 16; if (rem > 2) out[o++] = (v >> 8) & 255;
+  }
+  return out.buffer.slice(0, o);
+}
+async function loadModel(file) {
+  if (!window.AGILANCER_B64 && !q.has('b64')) return loader.loadAsync(BASE + file);
+  const res = await fetch(BASE + file + '.b64.txt');
+  if (!res.ok) throw new Error(`could not load ${file} (${res.status})`);
+  return loader.parseAsync(decodeBase64(await res.text()), BASE);
+}
 const setLoading = (t) => { document.getElementById('loading-text').textContent = t; };
 setLoading('Loading hero…');
-const gltf = await loader.loadAsync(BASE + 'agilancer_hero.glb');
+const gltf = await loadModel('agilancer_hero.glb');
 const hero = gltf.scene;
 scene.add(hero);
 let clothSource = null;
@@ -102,7 +127,7 @@ if (clothSource) {
 setLoading('Loading lance & shield…');
 let arms = null;
 try {
-  const wg = await loader.loadAsync(BASE + 'agilancer_arms.glb');
+  const wg = await loadModel('agilancer_arms.glb');
   arms = attachArms(wg.scene, skinned[0]);
 } catch (e) { console.warn('arms not available', e); document.getElementById('sec-weapons').style.display = 'none'; }
 
@@ -172,7 +197,7 @@ document.getElementById('chk-rm').onchange = async (e) => {
   rootMotion = e.target.checked;
   if (rootMotion && !clipsRM) {
     e.target.disabled = true;
-    const rm = await loader.loadAsync(BASE + 'UAL2_Standard_RM.glb');
+    const rm = await loadModel('UAL2_Standard_RM.glb');
     clipsRM = rm.animations;
     e.target.disabled = false;
   }
@@ -212,7 +237,7 @@ if (arms) {
 
 // ------------------------------------------------------------------ loop
 if (q.has('rm')) {                      // start with root motion (used by the capture harness)
-  const rm = await loader.loadAsync(BASE + 'UAL2_Standard_RM.glb');
+  const rm = await loadModel('UAL2_Standard_RM.glb');
   clipsRM = rm.animations; rootMotion = true; document.getElementById('chk-rm').checked = true;
 }
 if (q.has('wire')) hero.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.wireframe = true; } });
