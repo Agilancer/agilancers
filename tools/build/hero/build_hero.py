@@ -219,13 +219,18 @@ else:
     lum = e.mean(2, keepdims=True)
     sat = e.max(2, keepdims=True) - e.min(2, keepdims=True)
     iris = np.clip((sat - 0.12) / 0.15, 0, 1)
-    tint = np.array([0.20, 0.17, 0.15])
-    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 1.25) * iris          # near black-brown iris
+    tint = np.array([0.22, 0.145, 0.13])
+    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean()) * iris          # near black-brown iris
     white = np.clip((lum - 0.55) / 0.2, 0, 1) * (1 - iris)
-    e2 = e2 * (1 - white) + e2 * np.array([0.50, 0.39, 0.37]) * white            # not paper-white sclera
+    e2 = e2 * (1 - white) + e2 * np.array([0.50, 0.39, 0.37]) * white
+    # pinker, darker sclera toward the eye corners (1.5-2.4 iris radii from each iris centre)
+    for _cx, _cy in ((721.0, 299.7), (295.0, 721.7)):
+        _r = np.hypot(_xx - _cx, _yy - _cy) / 118.0
+        _k = np.clip((_r - 1.5) / 0.9, 0, 1)[..., None] * (1 - iris)
+        e2 = e2 * (1 - _k) + e2 * np.array([0.80, 0.66, 0.66]) * _k            # not paper-white sclera
     from texlib import save_rgb as _sv
     _sv(os.path.join(TEXDIR, 'Eyes_albedo.jpg'), np.clip(e2, 0, 1), quality=94)
-    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.22))
+    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.30))
 log('Eyes', len(_mh['EV']))
 
 def build_hair():
@@ -339,14 +344,14 @@ def hair_cap():
     def field(X):
         above = X[:, 1] - P.hair_line(X)
         cd = PT.clipped_density(X)
-        return np.maximum(above / 0.004, (cd - 0.20) / 0.30), above, cd
+        return np.maximum(above / 0.004, (cd - 0.50) / 0.30), above, cd
     g, _, _ = field(V)
     V2, F2, N2, g2 = clip_mesh(V, F, N, g)
     _, above2, cd2 = field(V2)
     front = np.clip((V2[:, 2] - P.HEAD_CZ) / 0.09, 0, 1)
     dome = 1 - 0.5 * PT.smoothstep(0.025, 0.045, np.abs(V2[:, 0]))              # rounded dome, no square shoulders
     lift = (0.003 + 0.005 * front) * dome * PT.smoothstep(0.0, 0.016, above2)
-    side_t = 0.0045 * PT.smoothstep(0.2, 0.8, cd2)                        # thick, fuzzy clipped sides, tapering to the edge
+    side_t = 0.0015 * PT.smoothstep(0.5, 0.9, cd2)                        # clipped sides: thin shell, the paint carries the fade
     top_t = (0.0024 + lift) * PT.smoothstep(0.0, 0.004, above2)
     t = np.maximum(side_t, top_t) * PT.smoothstep(0.0, 1.0, np.clip(g2, 0, 1))   # flush at the cut edge
     return V2 + N2 * (t + 0.0003)[:, None], F2
@@ -354,7 +359,7 @@ def hair_cap():
 
 capV, capF = hair_cap()
 hair = assemble('Hair', [dict(name='cap', V=capV, F=capF, W=WT.rigid(capV, 'Head')), sub('bun', *load('bun'), 2400, rigid_head)],
-                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.58, normal=0.45, orm_paint=dispatch(PT.hair_roughness, PT.bun_roughness), detail_sigma=2.0, color=(0.15, 0.13, 0.11),
+                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.58, normal=0.25, orm_paint=dispatch(PT.hair_roughness, PT.bun_roughness), detail_sigma=2.0, color=(0.15, 0.13, 0.11),
                 ao=dict(rays=24, max_dist=0.02, strength=0.4))
 
 # ---------------------------------------------------------------- clothing

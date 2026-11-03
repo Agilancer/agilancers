@@ -164,11 +164,23 @@ def warp(Y, earw=None, nosew=None):
     if earw is not None:
         kj = kj * (1 - earw)                         # the ears keep their own shape/position
     kb = 0.0
-    if nosew is not None and w.get('bridge_narrow', 0.0):
+    if w.get('bridge_narrow', 0.0):
         # narrower nasal bridge (client: ~10 mm across vs ~17): pull the dorsum's sides toward the midline
         # between the nasion and the lobule; the tip, alae and nostrils keep their width
-        kb = -w['bridge_narrow'] * np.sqrt(np.clip(nosew, 0, 1)) * _ss(0.016, 0.006, rel) * _ss(-0.036, -0.024, rel)
+        kb = -w['bridge_narrow'] * _ss(0.019, 0.008, ax) * _ss(0.016, 0.006, rel) * _ss(-0.036, -0.024, rel)
     Y[:, 0] *= 1 + kc * side_c + kj + kb
+    front = _ss(-0.01, 0.04, Y[:, 2] - P.HEAD_CZ)
+    # forehead: more upright (client profile), fading out toward the temples and into the scalp
+    ff = w.get('forehead_forward', 0.0)
+    if ff:
+        Y[:, 2] += ff * _ss(0.012, 0.065, rel) * _ss(0.12, 0.09, rel) * _ss(0.065, 0.030, ax) * front
+    # underbite: lower lip, lip-chin fold and chin forward (below the mouth line), fading into the jaw and neck
+    mf = w.get('mandible_forward', 0.0)
+    if mf:
+        Y[:, 2] += mf * _ss(-0.064, -0.071, rel) * _ss(-0.150, -0.118, rel) * _ss(0.055, 0.030, ax) * front
+    ub = w.get('upper_lip_back', 0.0)
+    if ub:
+        Y[:, 2] -= ub * _ss(-0.046, -0.054, rel) * _ss(-0.071, -0.064, rel) * _ss(0.040, 0.022, ax) * front
     # crown: a taller dome (client's skull is higher above the hairline)
     Y[:, 1] += w.get('dome', 0.0) * _ss(0.065, 0.105, rel)
     # chin: stretch the face below the mouth line downward (front part only), fading out at the neck
@@ -303,6 +315,17 @@ def build():
     eyes_V = warp(place(EVm))
     inward = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('eyeball_inward', 0.0)
     eyes_V[:, 0] -= np.sign(eyes_V[:, 0]) * inward          # critics: the irises sat ~2 mm too far out
+    eb = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('warp', {}).get('eyes_back', 0.0)
+    if eb:
+        for sg in (1, -1):
+            E = eyes_V[eyes_V[:, 0] * sg > 0]
+            c = E.mean(0)
+            def wgt(X):
+                r = np.linalg.norm((X - c) / [0.026, 0.020, 0.030], axis=1)
+                return np.clip(1 - r, 0, 1) ** 1.5 * (X[:, 2] > c[2] - 0.02)
+            head_V[:, 2] -= eb * wgt(head_V)
+            m = eyes_V[:, 0] * sg > 0
+            eyes_V[m, 2] -= eb                                         # eyeball moves rigidly with the lids
     # lower lids: drop the lid edge (critic: heavy-lidded, iris fully shown at the bottom) keeping the lid on the
     # eyeball; tapers to 0 at both eye corners and fades out ~8 mm below the edge
     drop = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('warp', {}).get('lower_lid_drop', 0.0)
