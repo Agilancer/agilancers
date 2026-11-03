@@ -45,10 +45,13 @@ FACE = {
 
 
 FIT_PATH = os.path.join(ROOT, 'build', 'cache', 'face_fit.json')
-if os.path.exists(FIT_PATH):
+_tw = json.load(open(os.path.join(HERE, 'face_tweaks.json')))
+MACRO = _tw.get('macro', MACRO)
+if _tw.get('use_fit', True) and os.path.exists(FIT_PATH):
     FACE = {k: v for k, v in json.load(open(FIT_PATH))['weights'].items() if abs(v) > 1e-3}
     FACE.update({'neck/neck-scale-horiz-incr': 0.50, 'neck/neck-scale-depth-incr': 0.40, 'neck/neck-double-incr': 0.15})
-_tw = json.load(open(os.path.join(HERE, 'face_tweaks.json')))
+else:
+    FACE = dict(_tw.get('face_base', FACE))
 for _k, _v in _tw.get('morph_add', {}).items():
     FACE[_k] = FACE.get(_k, 0.0) + _v
 
@@ -181,6 +184,10 @@ def warp(Y, earw=None, nosew=None):
     ub = w.get('upper_lip_back', 0.0)
     if ub:
         Y[:, 2] -= ub * _ss(-0.046, -0.054, rel) * _ss(-0.071, -0.064, rel) * _ss(0.040, 0.022, ax) * front
+    # broad chin (client: the chin itself is wide from the front; the white beard on it is short stubble)
+    cw = w.get('chin_widen', 0.0)
+    if cw:
+        Y[:, 0] *= 1 + cw * _ss(-0.080, -0.100, rel) * _ss(-0.150, -0.128, rel) * _ss(-0.01, 0.03, Y[:, 2] - P.HEAD_CZ)
     # lower-jaw taper: the jawline sweeps into a round U toward the chin instead of square jowl corners
     jt = w.get('jaw_taper', 0.0)
     if jt:
@@ -188,7 +195,7 @@ def warp(Y, earw=None, nosew=None):
     # chin ball: a smooth, full, forward-rounded chin pad (client profile), filling the lip-chin fold
     cb = w.get('chin_ball', 0.0)
     if cb:
-        g = np.exp(-((rel - w.get('chin_ball_y', -0.103)) / 0.017) ** 2 - (Y[:, 0] / 0.022) ** 2)
+        g = np.exp(-((rel - w.get('chin_ball_y', -0.103)) / 0.017) ** 2 - (Y[:, 0] / w.get('chin_ball_wx', 0.022)) ** 2)
         Y[:, 2] += cb * g * _ss(-0.01, 0.04, Y[:, 2] - P.HEAD_CZ)
     # lip-chin fold filled: his beard line runs straight from the lower lip to the chin (no S-curve)
     lf = w.get('labiomental_fill', 0.0)
@@ -292,10 +299,15 @@ def build():
     s = ipd_hero / np.linalg.norm(eyeL - eyeR)
     mid = (eyeL + eyeR) / 2
 
+    head_back = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('head_back', 0.0)
+
     def place(X):
         Y = (X - mid) * s
         Y[:, 1] += P.Y_EYE
         Y[:, 2] += -0.0155 - (neck[2] - mid[2]) * s
+        # head/neck posture: the head sat ~4-5 cm forward of the shoulders; move it back over the spine,
+        # tapering to nothing at the neck base so the neck still sits in the collar
+        Y[:, 2] -= head_back * _ss(1.535, 1.625, Y[:, 1])
         return Y
     # ---- head + neck cut out of the body
     body = [k for k, g in enumerate(G) if g == 'body']

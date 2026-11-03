@@ -1,185 +1,126 @@
 {
- "_doc": "Likeness controls for the hero's face (client = reference). front/profile override the measured landmark targets in fit_face.py (metres); morph_add adds MakeHuman target weights after the fit; texture_mode 'clean' = MakeHuman-style painted skin (no photo); skin/texture tune colours; hairline sets the forehead/temple border of the long top hair.",
- "_round": "restart round 6: client profile/underbite + critics A+B round-5 notes",
+ "_doc": "Hero face: a generic good-looking MakeHuman male (the client asked to drop the likeness). The previous likeness settings are kept in face_tweaks_client_likeness.json.",
  "texture_mode": "clean",
- "lambda": 0.002,
- "front": {
-  "gonion_l": [
-   0.071,
-   -0.072
-  ],
-  "gonion_r": [
-   -0.071,
-   -0.072
-  ],
-  "menton": [
-   0.0,
-   -0.1155
-  ],
-  "brow_in_l": [
-   0.016,
-   0.0135
-  ],
-  "brow_in_r": [
-   -0.016,
-   0.0135
-  ],
-  "brow_out_l": [
-   0.0552,
-   0.0118
-  ],
-  "brow_out_r": [
-   -0.0552,
-   0.0118
-  ],
-  "tip": [
-   0.0,
-   -0.035
-  ],
-  "mouth_l": [
-   0.0262,
-   -0.065
-  ],
-  "mouth_r": [
-   -0.0262,
-   -0.065
-  ],
-  "ala_l": [
-   0.0165,
-   -0.049
-  ],
-  "ala_r": [
-   -0.0165,
-   -0.049
-  ],
-  "subnasale": [
-   0.0,
-   -0.051
-  ]
+ "use_fit": false,
+ "macro": {
+  "macrodetails/universal-male-young-averagemuscle-averageweight": 0.45,
+  "macrodetails/universal-male-young-maxmuscle-averageweight": 0.45,
+  "macrodetails/universal-male-old-averagemuscle-averageweight": 0.1,
+  "macrodetails/caucasian-male-young": 0.9,
+  "macrodetails/caucasian-male-old": 0.1
  },
- "profile": {
-  "tip": [
-   0.015,
-   1.0
-  ],
-  "nasion": [
-   -0.0035,
-   0.8
-  ],
-  "ulip": [
-   0.001,
-   0.8
-  ],
-  "llip": [
-   0.003,
-   0.8
-  ],
-  "pogonion": [
-   0.007,
-   0.5
-  ]
+ "face_base": {
+  "head/head-square": 0.3,
+  "head/head-oval": 0.2,
+  "chin/chin-prominent-incr": 0.3,
+  "chin/chin-width-incr": 0.2,
+  "chin/chin-height-incr": 0.1,
+  "cheek/l-cheek-bones-incr": 0.4,
+  "cheek/r-cheek-bones-incr": 0.4,
+  "cheek/l-cheek-volume-decr": 0.25,
+  "cheek/r-cheek-volume-decr": 0.25,
+  "nose/nose-scale-horiz-decr": 0.15,
+  "nose/nose-hump-decr": 0.3,
+  "nose/nose-point-width-decr": 0.25,
+  "nose/nose-scale-depth-incr": 0.15,
+  "mouth/mouth-scale-horiz-incr": 0.1,
+  "eyebrows/eyebrows-trans-down": 0.3,
+  "eyes/l-eye-eyefold-down": 0.2,
+  "eyes/r-eye-eyefold-down": 0.2,
+  "neck/neck-scale-horiz-incr": 0.35,
+  "neck/neck-scale-depth-incr": 0.25
  },
- "morph_add": {
-  "head/head-square": 0.15,
-  "neck/neck-double-incr": 0.85,
-  "forehead/forehead-temple-incr": 0.3,
-  "eyes/r-eye-eyefold-down": 0.8,
-  "eyes/l-eye-eyefold-down": 0.8,
-  "ears/r-ear-wing-incr": 0.8,
-  "ears/l-ear-wing-incr": 0.8,
-  "ears/r-ear-scale-incr": 0.45,
-  "ears/l-ear-scale-incr": 0.45,
-  "mouth/mouth-angles-down": 0.3,
-  "cheek/r-cheek-volume-incr": 0.1,
-  "cheek/l-cheek-volume-incr": 0.1,
-  "mouth/mouth-cupidsbow-decr": 0.15,
-  "nose/nose-septumangle-incr": 0.2,
-  "nose/nose-flaring-decr": 0.3,
-  "nose/nose-point-up": 0.2,
-  "nose/nose-point-width-decr": 0.5,
-  "nose/nose-width2-decr": 1.0,
-  "nose/nose-width1-decr": 0.7,
-  "nose/nose-hump-decr": 0.6,
-  "nose/nose-curve-concave": 0.3,
-  "chin/chin-width-decr": 0.4,
-  "head/head-back-scale-depth-decr": 0.5,
-  "eyes/l-eye-height2-decr": 0.6,
-  "eyes/r-eye-height2-decr": 0.6
- },
- "eyeball_inward": 0.0015,
+ "morph_add": {},
+ "warp": {},
+ "eyeball_inward": 0.0,
+ "brow_paint_dy": [
+  0.0,
+  0.0
+ ],
  "skin": {
   "base": [
-   0.74,
-   0.48,
-   0.4
+   0.8,
+   0.6,
+   0.49
   ],
   "ruddy": [
-   0.75,
-   0.35,
-   0.36
+   0.78,
+   0.48,
+   0.42
   ],
   "lips": [
-   0.52,
-   0.21,
-   0.27
+   0.6,
+   0.33,
+   0.35
   ],
-  "brow": [
-   0.21,
-   0.16,
-   0.13
-  ],
-  "beard_light": [
-   0.7,
-   0.62,
-   0.58
-  ],
-  "beard_dark": [
-   0.36,
+  "lips_lower_top": [
+   0.58,
    0.32,
-   0.29
-  ],
-  "ear": [
-   0.72,
-   0.38,
-   0.33
+   0.34
   ],
   "lips_lower": [
    0.66,
-   0.4,
-   0.4
+   0.42,
+   0.42
+  ],
+  "brow": [
+   0.11,
+   0.085,
+   0.07
   ],
   "brow_light": [
-   0.34,
-   0.28,
-   0.24
+   0.2,
+   0.15,
+   0.12
   ],
-  "beard_darkzone": [
-   0.46,
-   0.42,
-   0.39
+  "beard_dark": [
+   0.13,
+   0.105,
+   0.09
+  ],
+  "beard_light": [
+   0.22,
+   0.18,
+   0.15
   ],
   "beard_light_body": [
-   0.64,
-   0.61,
-   0.57
+   0.22,
+   0.18,
+   0.15
   ],
-  "lips_lower_top": [
-   0.57,
-   0.26,
-   0.33
+  "beard_darkzone": [
+   0.14,
+   0.11,
+   0.095
+  ],
+  "ear": [
+   0.76,
+   0.5,
+   0.44
   ]
  },
+ "groom": {
+  "beard_white": 0.0,
+  "beard_density": 0.85,
+  "redness": 0.45,
+  "hair_grey": 0.0,
+  "side_grey": 0.12,
+  "side_tone": [
+   0.3,
+   0.24,
+   0.2
+  ],
+  "bun_tint": [
+   0.17,
+   0.135,
+   0.1
+  ],
+  "brow_width": 1.35,
+  "brow_strength": 1.6
+ },
  "texture": {
-  "delight": 0.55,
-  "sat": 0.85,
-  "gain": 1.08,
-  "red": 1.0,
   "beard": 1.0,
-  "brows": 1.0,
-  "eye_half": [
-   26.0,
-   7.0
-  ]
+  "brows": 1.0
  },
  "hairline": [
   [
@@ -195,86 +136,17 @@
    180
   ],
   [
-   1.778,
-   1.776,
+   1.772,
+   1.771,
+   1.767,
    1.77,
-   1.773,
-   1.778,
-   1.778,
    1.774,
+   1.776,
+   1.772,
    1.764,
    1.752,
    1.745
   ]
  ],
- "warp": {
-  "cranium_x": 0.16,
-  "jaw_x": 0.14,
-  "chin_drop": 0.004,
-  "dome": 0.0,
-  "lower_lid_drop": 0.0035,
-  "bridge_narrow": 0.0,
-  "forehead_forward": 0.0075,
-  "mandible_forward": 0.0035,
-  "upper_lip_back": 0.0035,
-  "eyes_back": 0.002,
-  "jaw_taper": 0.1,
-  "chin_round": 0.6,
-  "chin_round_width": 0.026,
-  "chin_ball": 0.007,
-  "chin_ball_y": -0.103,
-  "mouth_up": 0.004,
-  "labiomental_fill": 0.004,
-  "labiomental_y": -0.088
- },
- "caps": {
-  "mouth/mouth-scale-depth-decr": 0.8,
-  "mouth/mouth-trans-backward": 0.6,
-  "nose/nose-base-up": 0.0,
-  "head/head-triangular": 0.0,
-  "mouth/mouth-upperlip-volume-decr": 0.5,
-  "cheek/r-cheek-volume-incr": 0.5,
-  "head/head-fat-incr": 0.3,
-  "nose/nose-volume-decr": 0.0,
-  "nose/nose-greek-incr": 0.0,
-  "nose/nose-septumangle-decr": 0.0,
-  "nose/nose-point-width-incr": 0.0,
-  "nose/nose-volume-incr": 0.0,
-  "nose/nose-scale-horiz-incr": 0.0,
-  "nose/nose-width1-incr": 0.0,
-  "nose/nose-width2-incr": 0.0,
-  "nose/nose-curve-convex": 0.0,
-  "nose/nose-hump-incr": 0.0,
-  "chin/chin-prominent-incr": 0.15,
-  "chin/chin-prognathism-incr": 0.15,
-  "chin/chin-width-incr": 0.0
- },
- "brow_paint_dy": [
-  -0.004,
-  -0.0015
- ],
- "profile_eye": {
-  "subnasale": [
-   0.0385,
-   1.5
-  ],
-  "tip": [
-   0.0495,
-   1.5
-  ],
-  "glabella": [
-   0.0335,
-   0.5
-  ],
-  "nasion": [
-   0.035,
-   1.0
-  ]
- },
- "front_weight": {
-  "tip": 2.0,
-  "subnasale": 2.0,
-  "ala_l": 1.5,
-  "ala_r": 1.5
- }
+ "head_back": 0.025
 }

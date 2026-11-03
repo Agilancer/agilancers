@@ -165,6 +165,7 @@ HEAD_BOX = ((-0.095, 1.395, -0.125), (0.095, 1.83, 0.135))
 
 
 HEAD_CZ = 0.022       # front/back centre of the (MakeHuman) cranium
+HEAD_CZ -= json.load(open(os.path.join(os.path.dirname(__file__), 'face_tweaks.json'))).get('head_back', 0.0)   # posture shift (see makehuman_head.place)
 
 
 def hair_line(p):
@@ -244,7 +245,7 @@ def place_bun():
     ts = np.linspace(0.02, 0.2, 600)
     pts = c + ts[:, None] * BUN_AXIS
     k = int(np.argmax(mh_head_sdf(pts) > 0))
-    BUN_CENTER = pts[k] + BUN_AXIS * 0.016
+    BUN_CENTER = pts[k] + BUN_AXIS * 0.019
 
 
 def bun_sdf(p):
@@ -258,8 +259,8 @@ def bun_sdf(p):
     ref = np.cross(BUN_AXIS, [1.0, 0, 0]); ref /= np.linalg.norm(ref)
     ang = np.arctan2(radial @ np.cross(BUN_AXIS, ref), radial @ ref)
     coil = 0.0022 * np.sin(5 * ang + 9 * h / 0.03)
-    body_ = ellipsoid(np.c_[rr, h, np.zeros_like(h)], (0, 0.001, 0), (0.021, 0.015, 0.021)) + coil * 0.6
-    tie = torus(p, BUN_CENTER - BUN_AXIS * 0.011, BUN_AXIS, 0.0125, 0.0024)
+    body_ = ellipsoid(np.c_[rr, h, np.zeros_like(h)], (0, 0.001, 0), (0.025, 0.018, 0.025)) + coil * 0.6
+    tie = torus(p, BUN_CENTER - BUN_AXIS * 0.013, BUN_AXIS, 0.0145, 0.0026)
     return smin(body_, tie, 0.002)
 
 
@@ -269,7 +270,7 @@ BUN_BOX = ((-0.055, 1.72, -0.15), (0.055, 1.88, 0.03))
 def tie_sdf(p):
     if not _MH.get('bun'):
         place_bun(); _MH['bun'] = True
-    return torus(p, BUN_CENTER - BUN_AXIS * 0.011, BUN_AXIS, 0.0125, 0.0024)
+    return torus(p, BUN_CENTER - BUN_AXIS * 0.013, BUN_AXIS, 0.0145, 0.0026)
 
 # ------------------------------------------------------------------ t-shirt
 TEE_HEM = 0.958
