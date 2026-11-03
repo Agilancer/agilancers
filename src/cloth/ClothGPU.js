@@ -9,7 +9,7 @@ import {
 } from 'three/tsl';
 import { MAX_NEIGHBORS } from './topology.js';
 
-export const MAX_COLLIDERS = 16;
+export const MAX_COLLIDERS = 24;
 
 export class ClothGPU {
   constructor(renderer, topo, params) {
@@ -19,7 +19,11 @@ export class ClothGPU {
     const N = topo.N;
     const v4 = (n) => instancedArray(new Float32Array(n * 4), 'vec4');
     this.posA = v4(N); this.posB = v4(N); this.prev = v4(N); this.normals = v4(N);
-    this.anchor0 = v4(N); this.anchor1 = v4(N);
+    this.anchor0 = v4(N); this.anchor1 = v4(N); this.tnorm = v4(N);
+    this.target = v4(N);                                        // xyz = animated position this substep, w = max distance
+    const md4 = new Float32Array(N * 4);
+    for (let i = 0; i < N; i++) md4[i * 4] = topo.maxDist[i];
+    this.maxDist = instancedArray(md4, 'vec4');                 // x = max distance from the animated surface
     this.colliders = v4(MAX_COLLIDERS * 2);
     const pin = new Float32Array(N * 4);
     for (let i = 0; i < N; i++) { pin[i * 4] = topo.pinned[i]; pin[i * 4 + 1] = topo.tether[i * 2]; pin[i * 4 + 2] = topo.tether[i * 2 + 1]; pin[i * 4 + 3] = topo.softPin[i]; }
@@ -35,7 +39,7 @@ export class ClothGPU {
       wind: uniform(new THREE.Vector3(...params.wind)), relax: uniform(params.relax),
       thickness: uniform(params.thickness), ground: uniform(params.ground), slack: uniform(params.tetherSlack),
       numColliders: uniform(0, 'int'), shift: uniform(new THREE.Vector3()),
-      up: uniform(new THREE.Vector3(0, 1, 0)), aboveSeam: uniform(params.aboveSeam),
+      up: uniform(new THREE.Vector3(0, 1, 0)), aboveSeam: uniform(params.aboveSeam), backstop: uniform(params.backstop ?? 0.012),
     };
     this._build();
   }
@@ -43,11 +47,13 @@ export class ClothGPU {
   _build() {
     const { N, rows, cols } = this.topo;
     const u = this.u;
-    const { posA, posB, prev, anchor0, anchor1, pinTether, nbrIdx, nbrRS, colliders, normals } = this;
+    const { posA, posB, prev, anchor0, anchor1, pinTether, nbrIdx, nbrRS, colliders, normals, tnorm, maxDist, target } = this;
 
     this.kIntegrate = Fn(() => {
       const i = instanceIndex;
       const pt = pinTether.element(i);
+      // the solve kernel may bind at most 8 storage buffers: hand it one target buffer
+      target.element(i).assign(vec4(mix(anchor0.element(i).xyz, anchor1.element(i).xyz, u.alpha), maxDist.element(i).x));
       If(pt.x.greaterThan(0.5), () => {
         const a = mix(anchor0.element(i).xyz, anchor1.element(i).xyz, u.alpha);
         posA.element(i).assign(vec4(a, 0));
@@ -94,7 +100,18 @@ export class ClothGPU {
         // never above the seam along the body's up axis (no flipping over the shoulders)
         const hUp = dot(x.sub(a), u.up).sub(u.aboveSeam);
         If(hUp.greaterThan(0), () => { x.subAssign(u.up.mul(hUp)); });
-        // capsules
+        // max distance from the animated coat surface + backstop
+        const tg = target.element(i);
+        const tgt = tg.xyz;
+        const dd = x.sub(tgt).toVar();
+        const dl = length(dd);
+        const md = tg.w;
+        If(dl.greaterThan(md), () => { dd.assign(dd.mul(md.div(dl))); });
+        const tn = tnorm.element(i).xyz;
+        const sd = dot(dd, tn).add(u.backstop);
+        If(sd.lessThan(0), () => { dd.subAssign(tn.mul(sd)); });
+        x.assign(tgt.add(dd));
+        // capsules: push out on the side the particle came from
         Loop(MAX_COLLIDERS, ({ i: c }) => {
           If(int(c).lessThan(u.numColliders), () => {
             const A = colliders.element(int(c).mul(2));
@@ -103,9 +120,16 @@ export class ClothGPU {
             const ba = B.sub(A.xyz);
             const pa = x.sub(A.xyz);
             const h = clamp(dot(pa, ba).div(max(dot(ba, ba), 1e-9)), 0, 1);
-            const q = pa.sub(ba.mul(h)).toVar();
+            const axisP = A.xyz.add(ba.mul(h));
+            const q = x.sub(axisP).toVar();
             const dq = length(q);
-            If(dq.lessThan(r), () => { x.assign(A.xyz.add(ba.mul(h)).add(q.mul(r.div(max(dq, 1e-6))))); });
+            If(dq.lessThan(r), () => {
+              // exit toward the coat's animated surface (it lies outside the body): no tunnelling to the far side
+              const o = tgt.sub(axisP).toVar();
+              const od = length(o);
+              const dir = select(od.greaterThan(r.mul(0.5)), o.div(max(od, 1e-9)), q.div(max(dq, 1e-6)));
+              x.assign(axisP.add(dir.mul(r)));
+            });
           });
         });
         x.y.assign(max(x.y, u.ground));
@@ -142,7 +166,7 @@ export class ClothGPU {
   }
 
   setState(positions) { this._upload(this.posA, positions); this._upload(this.prev, positions); }
-  setAnchors(a0, a1) { this._upload(this.anchor0, a0); this._upload(this.anchor1, a1); }
+  setAnchors(a0, a1, tn) { this._upload(this.anchor0, a0); this._upload(this.anchor1, a1); if (tn) this._upload(this.tnorm, tn); }
   setColliders(data, n) {
     this._upload(this.colliders, data.subarray(0, MAX_COLLIDERS * 8), false);
     this.u.numColliders.value = Math.min(n, MAX_COLLIDERS);
@@ -158,7 +182,7 @@ export class ClothGPU {
     u.gravity.value = P.gravity; u.damping.value = P.damping; u.air.value = P.airDrag;
     u.wind.value.set(...P.wind); u.relax.value = P.relax; u.thickness.value = P.thickness;
     u.slack.value = P.tetherSlack; u.ground.value = P.ground;
-    u.up.value.set(...P.up); u.aboveSeam.value = P.aboveSeam;
+    u.up.value.set(...P.up); u.aboveSeam.value = P.aboveSeam; u.backstop.value = P.backstop ?? 0.012;
     const r = this.renderer;
     r.compute(this.kIntegrate);
     const iters = P.iterations + (P.iterations % 2);   // even -> result ends in posA

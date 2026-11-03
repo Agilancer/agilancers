@@ -27,10 +27,12 @@ try {
   const col = new Float32Array(16 * 8); col.set([0, 1.0, 0.02, 0.13, 0, 1.3, 0.02, 0]); 
   cpu.setColliders(col, 1); gpu.setColliders(col, 1);
   const t0 = performance.now();
-  for (let s = 0; s < 240; s++) {
-    for (let c = 0; c < topo.cols; c++) for (let k = 0; k < 3; k++) { a0[c*3+k] = a1[c*3+k] || topo.rest[c*3+k]; }
-    for (let c = 0; c < topo.cols; c++) { a1[c*3] = topo.rest[c*3] + 0.15 * Math.sin(s / 30); a1[c*3+1] = topo.rest[c*3+1]; a1[c*3+2] = topo.rest[c*3+2] + 0.1 * Math.sin(s / 17); }
-    cpu.setAnchors(a0, a1); gpu.setAnchors(a0, a1);
+  const STEPS = +(new URLSearchParams(location.search).get('steps') || 240);
+  for (let s = 0; s < STEPS; s++) {
+    for (let p = 0; p < topo.N; p++) for (let k = 0; k < 3; k++) { a0[p*3+k] = a1[p*3+k] || topo.rest[p*3+k]; }
+    for (let p = 0; p < topo.N; p++) { a1[p*3] = topo.rest[p*3] + 0.15 * Math.sin(s / 30); a1[p*3+1] = topo.rest[p*3+1]; a1[p*3+2] = topo.rest[p*3+2] + 0.1 * Math.sin(s / 17); }
+    const tn = new Float32Array(topo.N * 3); for (let p = 0; p < topo.N; p++) tn[p*3+2] = 1;
+    cpu.setAnchors(a0, a1, tn); gpu.setAnchors(a0, a1, tn);
     cpu.step(1/120, 1, s/120); gpu.step(1/120, 1, s/120);
   }
   const g = await gpu.readPositions();
@@ -42,6 +44,9 @@ try {
     maxDrop = Math.max(maxDrop, topo.rest[i*3+1] - cpu.pos[i*3+1]);
   }
   out.maxErr = maxErr; out.meanErr = sumErr / topo.N; out.nan = nan; out.cpuMaxDrop = maxDrop;
+  out.worst = []; for (let i = 0; i < topo.N; i++) { const e = Math.hypot(g[i*4]-cpu.pos[i*3], g[i*4+1]-cpu.pos[i*3+1], g[i*4+2]-cpu.pos[i*3+2]); if (e > 0.01 && out.worst.length < 5) out.worst.push([i, Math.floor(i/topo.cols), e, [g[i*4],g[i*4+1],g[i*4+2]], [cpu.pos[i*3],cpu.pos[i*3+1],cpu.pos[i*3+2]], topo.maxDist[i], [a1[i*3],a1[i*3+1],a1[i*3+2]]]); }
+  out.byRow = []; for (let r = 0; r < topo.rows; r += 5) { let e = 0; for (let c = 0; c < topo.cols; c++) { const i = r*topo.cols+c; e += Math.hypot(g[i*4]-cpu.pos[i*3], g[i*4+1]-cpu.pos[i*3+1], g[i*4+2]-cpu.pos[i*3+2]); } out.byRow.push([r, +(e/topo.cols).toFixed(4)]); }
+  { const i = (topo.rows-1)*topo.cols + 10; out.hem = {gpu:[g[i*4],g[i*4+1],g[i*4+2]], cpu:[cpu.pos[i*3],cpu.pos[i*3+1],cpu.pos[i*3+2]], tgt:[a1[i*3],a1[i*3+1],a1[i*3+2]], md: topo.maxDist[i]}; }
   out.sampleGPU = [g[2000*4], g[2000*4+1], g[2000*4+2]]; out.sampleCPU = [cpu.pos[6000], cpu.pos[6001], cpu.pos[6002]];
 } catch (e) { out.error = String(e && e.stack || e); }
 window.__result = out; window.__done = true;

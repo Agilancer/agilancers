@@ -85,7 +85,36 @@ export function buildTopology(skinnedMesh) {
       tether[id(r, c) * 2 + 1] = acc;
     }
   }
-  return { meta, rows, cols, N, rest, pinned, softPin, anchorRows: ANCHOR_ROWS, nbrIdx, nbrRest, nbrStiff, tether, vertexOfParticle, particleOfVertex };
+  // max distance from the animated (skinned) coat surface, by row: 0 at the seam, ~8 cm on the chest,
+  // ~20 cm at the waist, ~50 cm at the hem (the UE/Unity cloth "max distance" paint), plus a backstop
+  // that keeps the cloth from passing behind that surface into the body
+  const maxDist = new Float32Array(N);
+  for (let r = 0; r < rows; r++) {
+    const t = Math.max(r - (ANCHOR_ROWS - 1), 0) / Math.max(rows - ANCHOR_ROWS, 1);
+    for (let c = 0; c < cols; c++) maxDist[id(r, c)] = r < ANCHOR_ROWS ? 0.01 : 0.02 + 0.48 * Math.pow(t, 1.25);
+  }
+  // grid normals in the rest pose point outward or inward depending on winding: find which
+  let out = 0;
+  for (let r = 1; r < rows - 1; r++) for (let c = 1; c < cols - 1; c++) {
+    const i = id(r, c);
+    const n = gridNormal(rest, rows, cols, r, c);
+    // outward ~ away from the vertical body axis through (0, y, 0)
+    out += n[0] * rest[i * 3] + n[2] * rest[i * 3 + 2] > 0 ? 1 : -1;
+  }
+  const normalSign = out >= 0 ? 1 : -1;
+  return { meta, rows, cols, N, rest, pinned, softPin, anchorRows: ANCHOR_ROWS, nbrIdx, nbrRest, nbrStiff, tether, vertexOfParticle, particleOfVertex, maxDist, normalSign };
+}
+
+/** Unit normal of a (rows x cols) particle grid at (r, c) from central differences. */
+export function gridNormal(p, rows, cols, r, c, out = [0, 0, 0]) {
+  const L = r * cols + Math.max(c - 1, 0), R = r * cols + Math.min(c + 1, cols - 1);
+  const U = Math.max(r - 1, 0) * cols + c, D = Math.min(r + 1, rows - 1) * cols + c;
+  const ex = p[R * 3] - p[L * 3], ey = p[R * 3 + 1] - p[L * 3 + 1], ez = p[R * 3 + 2] - p[L * 3 + 2];
+  const fx = p[D * 3] - p[U * 3], fy = p[D * 3 + 1] - p[U * 3 + 1], fz = p[D * 3 + 2] - p[U * 3 + 2];
+  const nx = ey * fz - ez * fy, ny = ez * fx - ex * fz, nz = ex * fy - ey * fx;
+  const l = Math.hypot(nx, ny, nz) || 1;
+  out[0] = nx / l; out[1] = ny / l; out[2] = nz / l;
+  return out;
 }
 
 // Capsule colliders in bind-pose model space, rigidly attached to bones.
@@ -108,4 +137,9 @@ export const COLLIDERS = [
   ['upperarm_r', -0.225, 1.442, -0.065, -0.455, 1.441, -0.070, 0.066],
   ['lowerarm_l', 0.480, 1.441, -0.070, 0.725, 1.441, -0.066, 0.045],
   ['lowerarm_r', -0.480, 1.441, -0.070, -0.725, 1.441, -0.066, 0.045],
+  // buttocks (the tail used to slip into the hip/thigh fold)
+  ['pelvis', -0.065, 0.900, -0.035, 0.065, 0.900, -0.035, 0.110],
+  // the shield plate on the left forearm (two flat-ish capsules along its height)
+  ['lowerarm_l', 0.530, 1.525, -0.270, 0.530, 1.525, 0.130, 0.060],
+  ['lowerarm_l', 0.670, 1.525, -0.270, 0.670, 1.525, 0.130, 0.060],
 ];

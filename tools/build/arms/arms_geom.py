@@ -18,8 +18,9 @@ META = json.load(open(os.path.join(PIECES, 'pieces.json')))
 # ---------------------------------------------------------------- placement in the hero's bind pose
 GRIP = np.array([-0.845, 1.408, -0.068])          # centre of the right fist
 AXIS = np.array([-0.3, 0.0, 1.0]); AXIS /= np.linalg.norm(AXIS)   # butt -> tip (thumb side)
-LANCE_LEN = 1.92
-GRIP_FROM_BUTT = 0.64
+LANCE_LEN = 1.75            # one-handed: shorter shaft
+GRIP_FROM_BUTT = 0.30       # little shaft behind the fist (the sword animations swing the butt past the head/legs)
+GRIP_HALF = 0.17            # ~34 cm wrapped grip
 SHIELD_CENTER = np.array([0.600, 1.497, -0.068])  # just above the left forearm (dorsal side)
 SHIELD_N = np.array([0.0, 1.0, 0.0])              # face normal
 SHIELD_UP = np.array([0.0, 0.0, 1.0])             # top of the design
@@ -147,11 +148,11 @@ def lance_parts():
     return [
         ('butt',   [(0.0, 0.0), (0.004, 0.010), (0.020, 0.0175), (0.050, 0.0195), (0.060, 0.0185)], 'butt', 1.0),
         ('band_lo',[(0.060, 0.0185), (0.064, 0.0192), (0.082, 0.0192), (0.086, R)], 'band2', 1.0),
-        ('shaft_lo', [(0.086, R), (GRIP_FROM_BUTT - 0.115, R)], 'shaft', 1.2),
-        ('ring_lo',[(GRIP_FROM_BUTT - 0.115, R), (GRIP_FROM_BUTT - 0.112, 0.0185), (GRIP_FROM_BUTT - 0.094, 0.0185), (GRIP_FROM_BUTT - 0.091, 0.0172)], 'ring', 1.0),
-        ('grip',   [(GRIP_FROM_BUTT - 0.091, 0.0172), (GRIP_FROM_BUTT + 0.091, 0.0172)], 'grip', 1.0),
-        ('ring_hi',[(GRIP_FROM_BUTT + 0.091, 0.0172), (GRIP_FROM_BUTT + 0.094, 0.0185), (GRIP_FROM_BUTT + 0.112, 0.0185), (GRIP_FROM_BUTT + 0.115, R)], 'ring2', 1.0),
-        ('shaft_hi', [(GRIP_FROM_BUTT + 0.115, R), (LANCE_LEN - 0.43, R * 0.97)], 'shaft', 2.0),
+        ('shaft_lo', [(0.086, R), (max(GRIP_FROM_BUTT - GRIP_HALF - 0.024, 0.090), R)], 'shaft', 0.6),
+        ('ring_lo',[(GRIP_FROM_BUTT - GRIP_HALF - 0.024, R), (GRIP_FROM_BUTT - GRIP_HALF - 0.021, 0.0185), (GRIP_FROM_BUTT - GRIP_HALF - 0.003, 0.0185), (GRIP_FROM_BUTT - GRIP_HALF, 0.0172)], 'ring', 1.0),
+        ('grip',   [(GRIP_FROM_BUTT - GRIP_HALF, 0.0172), (GRIP_FROM_BUTT + GRIP_HALF, 0.0172)], 'grip', 2.0),
+        ('ring_hi',[(GRIP_FROM_BUTT + GRIP_HALF, 0.0172), (GRIP_FROM_BUTT + GRIP_HALF + 0.003, 0.0185), (GRIP_FROM_BUTT + GRIP_HALF + 0.021, 0.0185), (GRIP_FROM_BUTT + GRIP_HALF + 0.024, R)], 'ring2', 1.0),
+        ('shaft_hi', [(GRIP_FROM_BUTT + GRIP_HALF + 0.024, R), (LANCE_LEN - 0.43, R * 0.97)], 'shaft', 1.6),
         ('strip',  [(LANCE_LEN - 0.43, R * 0.97), (LANCE_LEN - 0.43 + 0.003, 0.0172), (LANCE_LEN - 0.40, 0.0172), (LANCE_LEN - 0.397, R * 0.97)], 'band1', 1.0),
         ('collar', [(LANCE_LEN - 0.397, R * 0.97), (LANCE_LEN - 0.39, 0.0185), (LANCE_LEN - 0.36, 0.0205), (LANCE_LEN - 0.345, 0.0235), (LANCE_LEN - 0.338, 0.019), (LANCE_LEN - 0.33, 0.012)], 'collar', 1.0),
     ]

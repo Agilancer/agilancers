@@ -114,6 +114,35 @@ def ao_paint(paint, V, ao, floor=None):
     return f
 
 
+def coat_clamp(rgb, floor=0.62, keep=0.35):
+    """White coat: no dark texels (UV padding / photo shadows read as black blotches); deliberate
+    seams and buttons keep a faint version of their darkness."""
+    return np.where(rgb < floor, floor + (rgb - floor) * keep, rgb)
+
+
+def coat_bands(rgb, rows, cols):
+    """Front placket (~28 mm) along both front edges and a ~30 mm hem band on the cloth's grid
+    texture (u = column, v = row): cooler/greyer cotton, double topstitch, a thin inner shadow."""
+    H, W = rgb.shape[:2]
+    out = rgb.copy()
+    colw = W / (cols - 1); roww = H / (rows - 1)
+    xx = np.arange(W)[None, :].astype(float); yy = np.arange(H)[:, None].astype(float)
+    def band(dist, width):
+        b = (dist < width).astype(float)
+        stitch = np.exp(-((dist - width * 0.18) / 1.2) ** 2) + np.exp(-((dist - width * 0.82) / 1.2) ** 2)
+        edge = np.exp(-((dist - width) / 2.0) ** 2)
+        return b, stitch, edge
+    pw = 0.028 / 0.044 * colw                      # columns are ~4.4 cm apart
+    d_front = np.minimum(xx, W - 1 - xx) + 0 * yy
+    hw = 0.030 / 0.029 * roww                       # rows are ~2.9 cm apart
+    d_hem = (H - 1 - yy) + 0 * xx
+    for dist, width in ((d_front, pw), (d_hem, hw)):
+        b, st, ed = band(dist, width)
+        out = out * (1 - 0.06 * b[..., None]) * np.array([0.985, 0.99, 1.0])[None, None, :] ** b[..., None]
+        out = out * (1 - 0.22 * np.clip(st, 0, 1)[..., None]) * (1 - 0.18 * ed[..., None])
+    return out
+
+
 def assemble(name, subs, paint=None, size=1024, rough=0.7, metal=0.0, normal=None, double_sided=False, detail_sigma=4.0, color=(0.5, 0.5, 0.5), ao=None, orm_paint=None):
     Vs, Fs, Ws, ids = [], [], [], []
     off = 0
@@ -150,6 +179,8 @@ def assemble(name, subs, paint=None, size=1024, rough=0.7, metal=0.0, normal=Non
             paint = ao_paint(paint, V, aov, fl)
             log(f'  ao {name}: {time.time()-t_ao:.0f}s')
         rgb, mask = bake(V, N, F, uv[LT], paint, size, tri_attr=tid)
+        if name in ('Coat',):
+            rgb = coat_clamp(rgb)
         maps = write_maps(os.path.join(TEXDIR, name), rgb, mask, normal_strength=normal, detail_sigma=detail_sigma)
         orm = None
         if orm_paint is not None:                      # per-texel roughness (G) / metal (B)
@@ -177,7 +208,7 @@ def dispatch(*fns):
 
 # ---------------------------------------------------------------- weights
 def head_w(V, F):
-    Wb = WT.blend_by(V, ['spine_03', 'neck_01', 'Head'], lambda v: v[:, 1], [1.47, 1.535, 1.605])
+    Wb = WT.blend_by(V, ['spine_03', 'neck_01', 'Head'], lambda v: v[:, 1], [1.50, 1.55, 1.605])   # neck base rigid with the chest (collar)
     W = np.where((V[:, 1] > 1.6)[:, None], WT.rigid(V, 'Head'), Wb)
     return WT.limit(WT.smooth(W, F, 4))
 
@@ -188,7 +219,7 @@ NOT_LIMBS = [b for b in BONES if not any(k in b for k in ['index', 'middle', 'ri
 # ---------------------------------------------------------------- head + ears
 # MakeHuman-generated head + neck (ears included), face photo warped onto its landmarks
 _mh = np.load(os.path.join(CACHE, 'mh_head.npz'))
-head_sub = sub('head', *load('head'), 30000, head_w, subdiv=1)      # MakeHuman's 'smooth' (MakeHuman's own UVs: see pack_uv; too sparse at 2048)
+head_sub = sub('head', *load('head'), 15000, head_w, subdiv=1)      # MakeHuman's 'smooth' (MakeHuman's own UVs: see pack_uv; too sparse at 2048)
 _mode = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('texture_mode', 'photo')
 head = assemble('Head', [head_sub], dispatch(PT.paint_head_clean if _mode == 'clean' else PT.paint_head),
                 size=2048, rough=0.62, normal=0.35, detail_sigma=2.5, color=(0.72, 0.50, 0.38),
@@ -222,12 +253,12 @@ else:
     tint = np.array([0.22, 0.145, 0.13])
     e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean()) * iris          # near black-brown iris
     white = np.clip((lum - 0.55) / 0.2, 0, 1) * (1 - iris)
-    e2 = e2 * (1 - white) + e2 * np.array([0.54, 0.45, 0.42]) * white
+    e2 = e2 * (1 - white) + e2 * np.array([0.92, 0.86, 0.82]) * white          # warm off-white sclera (~200 sRGB)
     # pinker, darker sclera toward the eye corners (1.5-2.4 iris radii from each iris centre)
     for _cx, _cy in ((721.0, 299.7), (295.0, 721.7)):
         _r = np.hypot(_xx - _cx, _yy - _cy) / 118.0
         _k = np.clip((_r - 1.5) / 0.9, 0, 1)[..., None] * (1 - iris)
-        e2 = e2 * (1 - _k) + e2 * np.array([0.92, 0.86, 0.84]) * _k            # not paper-white sclera
+        e2 = e2 * (1 - _k) + e2 * np.array([0.96, 0.88, 0.86]) * _k            # not paper-white sclera
     from texlib import save_rgb as _sv
     _sv(os.path.join(TEXDIR, 'Eyes_albedo.jpg'), np.clip(e2, 0, 1), quality=94)
     eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.12))
@@ -326,6 +357,10 @@ def clip_mesh(V, F, N, g):
     return VV[used], rm[FF], NN[used], GG[used]
 
 
+HAIR_LIFT = (0.010, 0.008)     # slicked-back top volume: ~1-1.8 cm
+HAIR_CLUMP = 0.0025
+
+
 def hair_cap():
     """Hair as one shell grown from the scalp: the long slicked-back top
     (lifted toward the front) continuing into the thicker clipper-cut sides,
@@ -350,9 +385,14 @@ def hair_cap():
     _, above2, cd2 = field(V2)
     front = np.clip((V2[:, 2] - P.HEAD_CZ) / 0.09, 0, 1)
     dome = 1 - 0.5 * PT.smoothstep(0.025, 0.045, np.abs(V2[:, 0]))              # rounded dome, no square shoulders
-    lift = (0.003 + 0.005 * front) * dome * PT.smoothstep(0.0, 0.016, above2)
+    lift = (HAIR_LIFT[0] + HAIR_LIFT[1] * front) * dome * PT.smoothstep(0.0, 0.020, above2)
+    # 4-6 combed-back strand clumps converging on the bun (same flow field as the hair paint)
+    dB = V2 - PT.HAIR_B
+    fwd = np.array([0, -0.25, 1.0]); fwd /= np.linalg.norm(fwd)
+    aa = np.arctan2(dB[:, 0], np.abs(dB @ fwd) + 1e-4)
+    clumps = HAIR_CLUMP * (0.5 + 0.5 * np.cos(aa * 7.0)) * PT.smoothstep(0.004, 0.02, above2)
     side_t = 0.0015 * PT.smoothstep(0.5, 0.9, cd2)                        # clipped sides: thin shell, the paint carries the fade
-    top_t = (0.0024 + lift) * PT.smoothstep(0.0, 0.004, above2)
+    top_t = (0.0024 + lift + clumps) * PT.smoothstep(-0.002, 0.010, above2)
     t = np.maximum(side_t, top_t) * PT.smoothstep(0.0, 1.0, np.clip(g2, 0, 1))   # flush at the cut edge
     return V2 + N2 * (t + 0.0003)[:, None], F2
 
@@ -363,7 +403,16 @@ hair = assemble('Hair', [dict(name='cap', V=capV, F=capF, W=WT.rigid(capV, 'Head
                 ao=dict(rays=24, max_dist=0.02, strength=0.4))
 
 # ---------------------------------------------------------------- clothing
-tee_sub = sub('tee', *load('tee'), 7000)
+def tee_w(V, F):
+    """Tee: mannequin weights, but the collar and the top ~2 cm move rigidly with spine_03 like the
+    neck base inside them (the collar used to separate from the neck in motion)."""
+    W = WT.transfer(V)
+    t = PT.smoothstep(1.445, 1.47, V[:, 1])
+    W = W * (1 - t[:, None]) + WT.rigid(V, 'spine_03') * t[:, None]
+    return WT.limit(WT.smooth(WT.normalize(W), F))
+
+
+tee_sub = sub('tee', *load('tee'), 7000, tee_w)
 PT.set_tee_ref(tee_sub['V'])
 assemble('Tee', [tee_sub], dispatch(PT.paint_tee), size=1024, rough=0.88, normal=1.4, double_sided=True, color=(0.02, 0.02, 0.022))
 
@@ -439,6 +488,7 @@ elif os.environ.get('REBAKE') and 'CoatCloth' not in os.environ['REBAKE'] and os
 else:
     N = np_vertex_normals(skV, skF)
     rgb, mask = bake(skV, N, skF, grid_uv[skF], PT.paint_coat, 2048)
+    rgb = coat_bands(coat_clamp(rgb), rows, cols)
     maps = write_maps(os.path.join(TEXDIR, 'CoatCloth'), rgb, mask, normal_strength=1.2)
     m = image_material('M_CoatCloth', maps['albedo'], maps.get('normal'), 0.86, double_sided=True)
 cloth.data.materials.append(m)

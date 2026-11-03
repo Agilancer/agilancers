@@ -33,13 +33,32 @@ def orm_from_albedo(rgb):
     return np.dstack([np.ones_like(rough), rough, metal])
 
 
+def shield_orm(rgb, key):
+    """Shields: the rim band (near the silhouette) and gold details are metal; the field is a
+    non-metal painted/stone surface (the old brightness rule turned white marble fields into chrome)."""
+    orm = orm_from_albedo(rgb)
+    mpath = os.path.join(PIECES, f'shield_{key}_mask_main.png')
+    if not os.path.exists(mpath):
+        return orm
+    m = np.asarray(Image.open(mpath).convert('L').resize((rgb.shape[1], rgb.shape[0]))) > 127
+    d = ndimage.distance_transform_edt(m)
+    rim = np.clip((0.075 * max(rgb.shape[:2]) - d) / 6.0, 0, 1) * m
+    mx, mn = rgb.max(2), rgb.min(2)
+    sat = (mx - mn) / np.maximum(mx, 1e-3)
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    gold = ndimage.gaussian_filter(((r > g) & (g > b) & (sat > 0.35) & (rgb.mean(2) > 0.35)).astype(float), 1.0)
+    metal = np.maximum(rim, gold)
+    rough = np.clip(0.42 - 0.07 * metal + 0.10 * (1 - rgb.mean(2)), 0.3, 0.6)
+    return np.dstack([np.ones_like(rough), rough, metal])
+
+
 def material_for(kind, key):
     src = os.path.join(PIECES, f'{kind}_{key}.png')
     rgb = np.asarray(Image.open(src).convert('RGB')).astype(np.float32) / 255
     base = os.path.join(TEX, f'{kind}_{key}')
     save_rgb(base + '_albedo.jpg', rgb, quality=92)
-    save_rgb(base + '_normal.jpg', normal_from_albedo(rgb, strength=2.2, detail_sigma=3.0), quality=92)
-    save_rgb(base + '_orm.png', orm_from_albedo(rgb))
+    save_rgb(base + '_normal.jpg', normal_from_albedo(rgb, strength=0.9, detail_sigma=3.0), quality=92)
+    save_rgb(base + '_orm.png', shield_orm(rgb, key) if kind == 'shield' else orm_from_albedo(rgb))
     return image_material(f'M_{kind.title()}_{key}', base + '_albedo.jpg', base + '_normal.jpg', 0.6, 0.0, orm_path=base + '_orm.png', normal_strength=1.0)
 
 

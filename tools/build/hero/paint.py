@@ -293,7 +293,7 @@ def _brow_mask(x, y, z, side):
     bi[1] += BROW_DY[0]; bo[1] += BROW_DY[1]
     ax_ = sg * x
     t = (ax_ - abs(bi[0]) + 0.0095) / (abs(bo[0]) - abs(bi[0]) + 0.0115)
-    yc = bi[1] + (bo[1] - bi[1]) * t + 0.0018 * np.sin(np.clip(t, 0, 1) * np.pi)
+    yc = bi[1] + (bo[1] - bi[1]) * t + 0.0018 * np.sin(np.clip(t, 0, 1) ** GROOM.get('brow_arch_pow', 1.0) * np.pi)
     half = GROOM.get('brow_width', 1.0) * np.interp(t, [-0.05, 0.12, 0.45, 0.8, 1.02], [0.0011, 0.0021, 0.0022, 0.0018, 0.0007])
     inside = smoothstep(-0.04, 0.08, t) * smoothstep(1.08, 0.90, t)
     feather = np.where(y > yc, 0.0020, 0.0020)                      # soft top edge, crisper lower edge
@@ -572,7 +572,7 @@ def beard_masks(Pt, N):
     white = white * (1 - chin) + 0.40 * chin
     white = white * (1 - under * (1 - chin)) + 0.12 * under * (1 - chin)
     dens = np.clip(beard * (0.50 + 0.40 * mous + 0.25 * soul + 0.15 * arms + 0.15 * under + 0.20 * chin) * CLIENT.get('beard', 1.0), 0, 1)
-    BEARD_ZONES['soul'] = soul; BEARD_ZONES['arms'] = arms; BEARD_ZONES['chin'] = chin
+    BEARD_ZONES['soul'] = soul; BEARD_ZONES['arms'] = arms; BEARD_ZONES['chin'] = chin; BEARD_ZONES['region'] = beard; BEARD_ZONES['mous'] = mous
     dens = np.clip(dens * GROOM['beard_density'], 0, 1)
     return dens, np.clip(white * GROOM['beard_white'], 0.02, 0.8), mous
 
@@ -614,7 +614,7 @@ def paint_head_clean(Pt, N):
     lo_t = np.clip(-dy / 0.0065, 0, 1)[:, None]
     lo_col = np.array(T.get('lips_lower_top', [0.57, 0.26, 0.33]))[None, :] * (1 - lo_t) + np.array(T.get('lips_lower', [0.66, 0.40, 0.40]))[None, :] * lo_t
     skin = skin * (1 - 0.85 * lower[:, None]) + lo_col * 0.85 * lower[:, None]
-    skin *= (1 - 0.35 * smoothstep(0.0005, 0.0, np.abs(dy)) * (u < 1.02) * frontal)[:, None]       # the line between the lips
+    skin *= (1 - GROOM.get('lip_line', 0.35) * smoothstep(0.0007, 0.0, np.abs(dy)) * (u < 1.02) * frontal)[:, None]       # the line between the lips
     pit = np.exp(-((np.abs(x) - lip_seam()[2] + 0.0005) / 0.0018) ** 2 - (dy / 0.0018) ** 2) * frontal
     skin *= (1 - 0.4 * pit)[:, None]                                                            # mouth-corner pits
     # nostrils: dark openings where the surface faces down under the nose
@@ -635,8 +635,9 @@ def paint_head_clean(Pt, N):
         up = smoothstep(c[1] - 0.002, c[1] + 0.003, y)
         cin = abs(_lm(f'canthus_in_{"l" if sg > 0 else "r"}')[0]) if f'canthus_in_{"l" if sg > 0 else "r"}' in LM else 0.0
         outer = smoothstep(cin + 0.004, cin + 0.012, ax)
-        lash = smoothstep(0.0008, 0.0002, dd) * ((0.80 + 0.20 * outer) * up + 0.06 * (1 - up)) * smoothstep(cin - 0.0015, cin - 0.0005, ax)
-        skin *= (1 - 0.5 * lash)[:, None]
+        lw = 0.0010 + 0.0005 * outer
+        lash = smoothstep(lw, lw * 0.25, dd) * ((0.85 + 0.15 * outer) * up + 0.06 * (1 - up)) * smoothstep(cin - 0.0015, cin - 0.0005, ax)
+        skin *= (1 - GROOM.get('lash', 0.5) * lash)[:, None]
         k = f'canthus_in_{"l" if sg > 0 else "r"}'
         if k in LM:
             skin = mix(skin, np.tile(np.array(T['ruddy']), (len(x), 1)), 0.35 * blob(_lm(k), [0.003, 0.003, 0.004]))
@@ -650,30 +651,49 @@ def paint_head_clean(Pt, N):
     skin = skin * (1 - kb) + bcol * kb
     # stubble
     dens, white, mous = beard_masks(Pt, N)
-    dz = np.clip(BEARD_ZONES['soul'] + BEARD_ZONES['arms'], 0, 1)
-    light = mix(np.tile(np.array(T.get('beard_light_body', [0.64, 0.61, 0.57])), (len(x), 1)),
-                np.tile(np.array(T['beard_light']), (len(x), 1)), BEARD_ZONES['chin'])
-    bc, bcv = stubble(Pt, dens, white, np.array(T['beard_dark']), np.array([0.5, 0.5, 0.5]), cell=0.00040, stretch=(1.0, 4.0, 1.0))
-    lightmask = (np.abs(bc - 0.5).sum(1) < 0.2)[:, None] * 1.0              # strokes drawn with the light placeholder
-    jitter = bc / 0.5
-    bc = bc * (1 - lightmask) + light * jitter * lightmask
-    darkz = np.tile(np.array(T.get('beard_darkzone', [0.30, 0.27, 0.24])), (len(x), 1))
-    mz = np.tile(np.array([0.30, 0.26, 0.23]), (len(x), 1))
-    bc = bc * (1 - lightmask) * (1 - dz[:, None]) + darkz * (1 - lightmask) * dz[:, None] + bc * lightmask
-    bc = bc * (1 - (1 - lightmask) * mous[:, None]) + mz * (1 - lightmask) * mous[:, None]
-    tone = mix(np.tile(np.array([0.52, 0.48, 0.44]), (len(x), 1)), np.tile(np.array([0.66, 0.62, 0.58]), (len(x), 1)), white)
-    chz = BEARD_ZONES['chin'][:, None]
-    tone = tone * (1 - chz) + np.array([0.70, 0.56, 0.52])[None, :] * chz
-    shadow = np.clip(dens * (0.55 - 0.25 * BEARD_ZONES['chin']), 0, 1)[:, None]
-    skin = skin * (1 - shadow) + tone * shadow
-    k = np.clip(bcv * (0.40 + 0.30 * mous + 0.12 * BEARD_ZONES['arms']), 0, 1)[:, None]
-    skin = skin * (1 - k) + bc * k
-    skin *= (1 - 0.18 * mous * dens)[:, None]                         # moustache: the darkest front zone
+    if GROOM.get('stubble_mode') == 'uniform':
+        # short dark stubble in two layers: a soft shadow and fine directional strokes (no light hairs)
+        reg = BEARD_ZONES['region']
+        sty = seam_y(np.abs(x))
+        dense = np.maximum(BEARD_ZONES['mous'], smoothstep(sty - 0.008, sty - 0.020, y) * smoothstep(0.034, 0.020, ax))
+        d = np.clip(reg * (0.6 + 0.2 * dense), 0, 1) * GROOM['beard_density']
+        skin = skin * (1 - d[:, None] * np.array([0.20, 0.22, 0.22])[None, :])
+        sc, scov = stubble(Pt, d * 0.55, 0.0, np.array([0.09, 0.07, 0.06]), np.array([0.09, 0.07, 0.06]), cell=0.00042, stretch=(1.0, 2.6, 1.0))
+        k = np.clip(scov * 0.8, 0, 1)[:, None]
+        skin = skin * (1 - k) + sc * k
+    else:
+        dz = np.clip(BEARD_ZONES['soul'] + BEARD_ZONES['arms'], 0, 1)
+        light = mix(np.tile(np.array(T.get('beard_light_body', [0.64, 0.61, 0.57])), (len(x), 1)),
+                    np.tile(np.array(T['beard_light']), (len(x), 1)), BEARD_ZONES['chin'])
+        bc, bcv = stubble(Pt, dens, white, np.array(T['beard_dark']), np.array([0.5, 0.5, 0.5]), cell=0.00040, stretch=(1.0, 4.0, 1.0))
+        lightmask = (np.abs(bc - 0.5).sum(1) < 0.2)[:, None] * 1.0              # strokes drawn with the light placeholder
+        jitter = bc / 0.5
+        bc = bc * (1 - lightmask) + light * jitter * lightmask
+        darkz = np.tile(np.array(T.get('beard_darkzone', [0.30, 0.27, 0.24])), (len(x), 1))
+        mz = np.tile(np.array([0.30, 0.26, 0.23]), (len(x), 1))
+        bc = bc * (1 - lightmask) * (1 - dz[:, None]) + darkz * (1 - lightmask) * dz[:, None] + bc * lightmask
+        bc = bc * (1 - (1 - lightmask) * mous[:, None]) + mz * (1 - lightmask) * mous[:, None]
+        tone = mix(np.tile(np.array([0.52, 0.48, 0.44]), (len(x), 1)), np.tile(np.array([0.66, 0.62, 0.58]), (len(x), 1)), white)
+        chz = BEARD_ZONES['chin'][:, None]
+        tone = tone * (1 - chz) + np.array([0.70, 0.56, 0.52])[None, :] * chz
+        shadow = np.clip(dens * (0.55 - 0.25 * BEARD_ZONES['chin']), 0, 1)[:, None]
+        skin = skin * (1 - shadow) + tone * shadow
+        k = np.clip(bcv * (0.40 + 0.30 * mous + 0.12 * BEARD_ZONES['arms']), 0, 1)[:, None]
+        skin = skin * (1 - k) + bc * k
+        skin *= (1 - 0.18 * mous * dens)[:, None]                         # moustache: the darkest front zone
     # clipped sides/back, temples, sideburns
     dside = clipped_density(Pt)
     scalp = clipped_hair(Pt, skin, dside)
-    top = smoothstep(P.hair_line(Pt) - 0.006, P.hair_line(Pt) + 0.001, y)
+    hl = P.hair_line(Pt)
+    top = smoothstep(hl - 0.006, hl + 0.001, y)
     out = mix(scalp, paint_hair(Pt, N), top)
+    if GROOM.get('hairline_feather', 0.0):
+        th_ = np.degrees(np.abs(np.arctan2(x, z - P.HEAD_CZ)))
+        band = smoothstep(hl - 0.010, hl - 0.001, y) * (1 - top) * smoothstep(60, 40, th_) * GROOM['hairline_feather']
+        out = out * (1 - 0.18 * band[:, None])
+        hc, hcov = stubble(Pt, band * 0.6, 0.0, np.array([0.12, 0.095, 0.075]), np.array([0.12, 0.095, 0.075]), cell=0.0004, stretch=(1.0, 3.0, 1.0))
+        k = np.clip(hcov * 0.85, 0, 1)[:, None]
+        out = out * (1 - k) + hc * k
     return np.clip(out, 0, 1)
 
 
@@ -912,7 +932,7 @@ def paint_hair(Pt, N):
     the hair line the same shell carries the clipper-short sides."""
     d = Pt - HAIR_B
     fwd = np.array([0, -0.25, 1.0]); fwd /= np.linalg.norm(fwd)
-    a = np.arctan2(d[:, 0], d @ fwd)
+    a = np.arctan2(d[:, 0], np.abs(d @ fwd) + 1e-4)          # mirrored behind the bun: no wrap seam
     dist = np.linalg.norm(d, axis=1)
     lat = a * np.maximum(dist, 0.03) + 0.003 * np.sin(dist * 45.0 + a * 4.0)      # metres across the flow
     def band(w, salt):
@@ -921,7 +941,7 @@ def paint_hair(Pt, N):
         return _STRANDS[(i0 * 7 + int(salt)) % 4096] * (1 - t) + _STRANDS[((i0 + 1) * 7 + int(salt)) % 4096] * t
     r = band(0.0008, 0); r2 = band(0.00035, 17); clump = band(0.007, 101); clump2 = band(0.0031, 53)
     base = np.array([0.18, 0.14, 0.105]); dark = np.array([0.10, 0.08, 0.06]); grey = np.array([0.52, 0.49, 0.45])
-    along = 0.5 + 0.5 * np.sin(dist * 140.0 + r * 6.0)
+    along = 0.5 + 0.5 * np.sin(dist * 140.0 + r * 6.0) * GROOM.get('hair_rings', 1.0)
     col = base[None, :] * (0.92 + 0.16 * r[:, None]) * (0.90 + 0.20 * clump2[:, None]) * (0.94 + 0.12 * along[:, None])
     col = mix(col, dark[None, :].repeat(len(r), 0), 0.18 * (1 - clump2) ** 2)
     gthr = 0.82                                           # fine, evenly scattered grey strands
@@ -937,7 +957,7 @@ def hair_roughness(Pt, N):
     """G = roughness for the hair shell: matte clipped sides, satin slicked top."""
     above = Pt[:, 1] - P.hair_line(Pt)
     top = smoothstep(-0.004, 0.003, above)
-    r = 0.85 * (1 - top) + 0.60 * top
+    r = 0.85 * (1 - top) + 0.70 * top
     out = np.zeros((len(Pt), 3)); out[:, 0] = 1.0; out[:, 1] = r
     return out
 
@@ -1068,7 +1088,20 @@ def paint_tee(Pt, N):
     ub = np.where(u > 0, 2 - u, -2 - u)                                # -1..1 across the back
     bk = sample(bimg, 156 - ub * 143, row_of(y, 7, 326))
     w = smoothstep(0.92, 1.08, np.abs(u))
-    return mix(f[:, :3], bk[:, :3], w)
+    col = mix(f[:, :3], bk[:, :3], w)
+    # the white triangle print belongs on the chest only (stray print texels elsewhere read as specks)
+    chest = (np.abs(u) < 0.75) * smoothstep(1.10, 1.16, y) * smoothstep(1.47, 1.43, y)
+    lum = col.mean(1, keepdims=True)
+    fabric = np.minimum(col, 0.16)
+    col = col * chest[:, None] + fabric * (1 - chest[:, None])
+    # black cotton a little lighter so the folds read (~52 sRGB instead of ~34)
+    col = np.where(lum < 0.3, col * 1.55 + 0.01, col)
+    # rib collar: slightly lighter band, dark inner neck
+    rn = np.sqrt(Pt[:, 0] ** 2 + (Pt[:, 2] + 0.008) ** 2)
+    rib = smoothstep(1.475, 1.49, y) * smoothstep(0.10, 0.085, rn)
+    inner = smoothstep(0.0, -0.4, N[:, 0] * Pt[:, 0] / np.maximum(rn, 1e-6) + N[:, 2] * (Pt[:, 2] + 0.008) / np.maximum(rn, 1e-6))
+    col = mix(col, np.tile([0.255, 0.255, 0.27], (len(y), 1)), 0.8 * rib)
+    return mix(col, np.tile([0.04, 0.04, 0.045], (len(y), 1)), 0.85 * rib * inner)
 
 
 # ====================================================================== JEANS
@@ -1196,7 +1229,12 @@ def paint_jeans(Pt, N):
     wl = smoothstep(JEANS_CROTCH + 0.03, JEANS_CROTCH - 0.01, y)
     fb = wl * ufb + (1 - wl) * np.abs(u)
     w = smoothstep(0.92, 1.08, fb)
-    return mix(res['front'][0], res['back'][0], w)
+    col = mix(res['front'][0], res['back'][0], w)
+    # the flat-lay hem's tan stitching read as a skin gap at the ankles: keep it denim-dark
+    hem = smoothstep(P.JEANS_HEM + 0.030, P.JEANS_HEM + 0.012, Pt[:, 1])
+    lum = col.mean(1, keepdims=True)
+    dark = np.minimum(col, lum * 0.0 + np.array([[0.20, 0.21, 0.24]]))
+    return mix(col, dark, hem)
 
 
 # ====================================================================== SHOES
@@ -1222,7 +1260,18 @@ def paint_shoe(Pt, N, side='L'):
     f = (z_t - q[:, 2]) / L
     sole = sample(piece('outsole'), x0 + f * (x1 - x0), (y0 + y1) / 2 + (q[:, 0] - 0.089) / 0.11 * (y1 - y0))[:, :3]
     wb = smoothstep(-0.55, -0.85, n[:, 1]) * (q[:, 1] < 0.012)
-    return mix(col, sole, wb)
+    col = mix(col, sole, wb)
+    lum = col.mean(1, keepdims=True)
+    col = np.where(lum > 0.30, col * 0.45, col)                     # light blotches in the source photo
+    h = q[:, 1]
+    mid = smoothstep(0.008, 0.012, h) * smoothstep(0.036, 0.031, h) * (1 - wb)
+    col = mix(col, np.tile([0.29, 0.29, 0.30], (len(h), 1)), mid)     # charcoal foam midsole
+    acc = np.exp(-((h - 0.0335) / 0.0011) ** 2) * (1 - wb)
+    col = mix(col, np.tile([0.80, 0.80, 0.78], (len(h), 1)), 0.9 * acc)  # thin off-white accent line
+    laces = smoothstep(0.45, 0.75, n[:, 1]) * smoothstep(0.055, 0.075, h) * smoothstep(0.17, 0.12, q[:, 2]) * smoothstep(-0.01, 0.03, q[:, 2])
+    stripes = 0.5 + 0.5 * np.sin(q[:, 2] * 2 * np.pi / 0.012)
+    col = mix(col, np.tile([0.21, 0.21, 0.22], (len(h), 1)), laces * (0.5 + 0.5 * stripes))
+    return col
 
 
 # ====================================================================== COAT

@@ -6,7 +6,7 @@
 // cloth: only the seam row follows the skeleton (shoulders, shoulder blades
 // and, under each arm, the upper arm), the rest is pure physics.
 import * as THREE from 'three/webgpu';
-import { buildTopology, COLLIDERS } from './topology.js';
+import { buildTopology, COLLIDERS, gridNormal } from './topology.js';
 import { ClothCPU } from './ClothCPU.js';
 import { ClothGPU, MAX_COLLIDERS } from './ClothGPU.js';
 
@@ -17,11 +17,12 @@ export const DEFAULT_CLOTH_PARAMS = {
   wind: [0, 0, 0],
   relax: 1.0,
   iterations: 16,
-  thickness: 0.012,
+  thickness: 0.02,
   ground: 0.01,
   tetherSlack: 1.02,
   up: [0, 1, 0],          // body up axis (updated every frame from the skeleton)
-  aboveSeam: 0.04,        // how far cloth may rise above its seam row
+  aboveSeam: 1.0,         // legacy plane clamp (off: the max-distance/backstop constraints replace it)
+  backstop: 0.012,        // how far the cloth may sink behind its animated surface (toward the body)
 };
 
 export class CoatCloth {
@@ -40,6 +41,7 @@ export class CoatCloth {
     const N = this.topo.N;
     this._a0 = new Float32Array(N * 3);
     this._a1 = new Float32Array(N * 3);
+    this._tn = new Float32Array(N * 3);     // outward normals of the animated coat surface
     this._colData = new Float32Array(MAX_COLLIDERS * 8);
     this._v = new THREE.Vector3();
     this._m = new THREE.Matrix4();
@@ -104,14 +106,24 @@ export class CoatCloth {
     const all = new Float32Array(this.topo.N * 3);
     this._skinned(all, false);
     this.solver.setState(all);
-    this._a1.set(all.subarray(0, this._a1.length));
-    this._skinned(this._a1, true);
+    this._a1.set(all);
     this._a0.set(this._a1);
+    this._targetNormals();
+    this.solver.setAnchors(this._a0, this._a1, this._tn);
     this._writeCPU();
   }
 
+  _targetNormals() {
+    const { rows, cols, normalSign } = this.topo, t = this._a1, n = this._tn, tmp = [0, 0, 0];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      gridNormal(t, rows, cols, r, c, tmp);
+      const o = (r * cols + c) * 3;
+      n[o] = tmp[0] * normalSign; n[o + 1] = tmp[1] * normalSign; n[o + 2] = tmp[2] * normalSign;
+    }
+  }
+
   /** Move the whole cloth (e.g. when root motion wraps back to the origin). */
-  translate(dx, dy, dz) { this.solver.translate(dx, dy, dz); for (const a of [this._a0, this._a1]) for (let i = 0; i < this.topo.cols * this.topo.anchorRows * 3; i += 3) { a[i] += dx; a[i + 1] += dy; a[i + 2] += dz; } }
+  translate(dx, dy, dz) { this.solver.translate(dx, dy, dz); for (const a of [this._a0, this._a1]) for (let i = 0; i < a.length; i += 3) { a[i] += dx; a[i + 1] += dy; a[i + 2] += dz; } }
 
   update(frameDt) {
     frameDt = Math.min(frameDt, 1 / 20);
@@ -120,9 +132,10 @@ export class CoatCloth {
     const up = b.sub(a).normalize();
     this.params.up[0] = up.x; this.params.up[1] = up.y; this.params.up[2] = up.z;
     this._a0.set(this._a1);
-    this._skinned(this._a1, true);
+    this._skinned(this._a1, false);           // every particle: its animated (rigid-coat) position
+    this._targetNormals();
     this._updateColliders();
-    this.solver.setAnchors(this._a0, this._a1);
+    this.solver.setAnchors(this._a0, this._a1, this._tn);
     this.accum += frameDt;
     const n = Math.min(Math.floor(this.accum / this.fixedDt), 6);
     this.accum -= n * this.fixedDt;

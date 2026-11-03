@@ -101,22 +101,28 @@
  },
  "groom": {
   "beard_white": 0.0,
-  "beard_density": 0.85,
+  "beard_density": 1.0,
   "redness": 0.45,
   "hair_grey": 0.0,
-  "side_grey": 0.12,
+  "side_grey": 0.0,
   "side_tone": [
    0.3,
    0.24,
    0.2
   ],
   "bun_tint": [
-   0.17,
-   0.135,
-   0.1
+   0.2,
+   0.16,
+   0.12
   ],
-  "brow_width": 1.35,
-  "brow_strength": 1.6
+  "brow_width": 1.0,
+  "brow_strength": 1.0,
+  "stubble_mode": "uniform",
+  "brow_arch_pow": 1.6,
+  "lash": 0.85,
+  "lip_line": 0.6,
+  "hair_rings": 0.0,
+  "hairline_feather": 1.0
  },
  "texture": {
   "beard": 1.0,

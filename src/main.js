@@ -112,7 +112,9 @@ hero.traverse((o) => {
     o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
     const m = o.material;
     if (m.name === 'M_Hair') { m.envMapIntensity = 0.5; }
-    if (m.name === 'M_Head' || m.name === 'M_Arms') { m.roughness = 0.6; }
+    // skin: a flat 0.6, unless a painted roughness map is present (three.js multiplies the two)
+    if (m.name === 'M_Head' || m.name === 'M_Arms') { m.roughness = m.roughnessMap ? 1.0 : 0.6; }
+    if (m.roughnessMap && m.name === 'M_Hair') m.roughness = 1.0;
     if (m.normalMap) m.normalScale.set(0.8, 0.8);
   }
   if (o.userData?.cloth) clothSource = o;
@@ -239,7 +241,7 @@ document.getElementById('chk-col').onchange = (e) => {
 if (arms) {
   const selL = document.getElementById('sel-lance'), selS = document.getElementById('sel-shield');
   ARMS.forEach((v, i) => { selL.add(new Option(v.label, v.key)); selS.add(new Option(v.label, v.key)); });
-  selL.value = q.get('lance') || 'marble'; selS.value = q.get('shield') || 'marble';
+  selL.value = q.get('lance') || 'carbon'; selS.value = q.get('shield') || 'carbon';
   arms.show(selL.value, selS.value);
   selL.onchange = selS.onchange = () => arms.show(selL.value, selS.value);
   document.getElementById('chk-weapons').onchange = (e) => arms.group.visible = e.target.checked;
