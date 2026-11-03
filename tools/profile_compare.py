@@ -71,7 +71,8 @@ def key_points(P, y_nasion, y_sub, y_tip):
 
 def main(it):
     big = os.path.join(it, 'prof.png')
-    cam = f'fov=48&cd={FC.CD}&drop={FC.DROP}&hide=Arms'
+    CDP = 0.62                                               # a bit further than the likeness sheet: the whole profile fits
+    cam = f'fov=48&cd={CDP}&drop={FC.DROP}&hide=Arms'
     subprocess.run(['node', 'tools/shot.cjs', f'dev/preview.html?glb=../assets/models/agilancer_hero.glb&{cam}&views=cmp{YAW}',
                     big, '1040', '1200', '--noshot=1'], cwd=ROOT, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
     ren = Image.open(big.replace('.png', f'_cmp{YAW}.png')).convert('RGB')
@@ -81,6 +82,8 @@ def main(it):
     lm = json.load(open(os.path.join(ROOT, 'build/cache/mh_landmarks.json')))
     sys.path.insert(0, os.path.dirname(__file__))
     from nose_compare import project
+    import nose_compare as NC
+    _cd = FC.CD; FC.CD = CDP
     prj = lambda p: np.array(project(p, YAW, 1040, 1200))
     m_nas, m_tip, m_sub = key_points(M, prj(lm['glabella'])[1] + 30, prj(lm['subnasale'])[1], prj(lm['tip'])[1])
     c_nas, c_tip, c_sub = key_points(C, 2320, 2553, 2487)

@@ -173,7 +173,7 @@ def warp(Y, earw=None, nosew=None):
     # forehead: more upright (client profile), fading out toward the temples and into the scalp
     ff = w.get('forehead_forward', 0.0)
     if ff:
-        Y[:, 2] += ff * _ss(0.012, 0.065, rel) * _ss(0.12, 0.09, rel) * _ss(0.065, 0.030, ax) * front
+        Y[:, 2] += ff * _ss(0.012, 0.065, rel) * _ss(0.12, 0.09, rel) * _ss(0.075, 0.040, ax) * front
     # underbite: lower lip, lip-chin fold and chin forward (below the mouth line), fading into the jaw and neck
     mf = w.get('mandible_forward', 0.0)
     if mf:
@@ -190,6 +190,10 @@ def warp(Y, earw=None, nosew=None):
     if cb:
         g = np.exp(-((rel - w.get('chin_ball_y', -0.103)) / 0.017) ** 2 - (Y[:, 0] / 0.022) ** 2)
         Y[:, 2] += cb * g * _ss(-0.01, 0.04, Y[:, 2] - P.HEAD_CZ)
+    # lip-chin fold filled: his beard line runs straight from the lower lip to the chin (no S-curve)
+    lf = w.get('labiomental_fill', 0.0)
+    if lf:
+        Y[:, 2] += lf * np.exp(-((rel - w.get('labiomental_y', -0.088)) / 0.007) ** 2) * _ss(0.030, 0.018, ax) * _ss(-0.01, 0.04, Y[:, 2] - P.HEAD_CZ)
     # rounded chin: pull the chin's corners onto an ellipsoid inside it (round in profile and from the front)
     cr = w.get('chin_round', 0.0)
     if cr:
