@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#333}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/tsl":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"}}</script>
+</head><body><script type="module">
+import * as THREE from 'three/webgpu';
+const q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGPURenderer({ antialias: q.get('aa')!=='0', forceWebGL: q.get('gl')==='1' });
+renderer.setSize(400, 300); document.body.appendChild(renderer.domElement);
+await renderer.init();
+console.log('backend', renderer.backend.isWebGPUBackend ? 'webgpu' : 'webgl');
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x335577);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2.0));
+const m = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({color: 0xff8800}));
+scene.add(m);
+const cam = new THREE.PerspectiveCamera(50, 4/3, 0.1, 10); cam.position.set(2,2,3); cam.lookAt(0,0,0);
+renderer.setAnimationLoop(() => { m.rotation.y += 0.01; renderer.render(scene, cam); });
+setTimeout(() => { window.__done = true; }, 1500);
+</script></body></html>

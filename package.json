@@ -1,0 +1,13 @@
+{
+  "name": "agilancers",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Agilancer hero character: skinned model, physics lab coat (three.js WebGPU) and animation viewer",
+  "scripts": {
+    "serve": "node tools/serve.mjs"
+  },
+  "devDependencies": {
+    "three": "0.186.1"
+  }
+}

@@ -1,0 +1,42 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#2b2d31}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js","three/tsl":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"}}</script>
+</head><body><script type="module">
+// Line-up of all lance and shield designs (dev / review only).
+import * as THREE from 'three/webgpu';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL: true });
+renderer.setSize(innerWidth, innerHeight); renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement); await renderer.init();
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x2b2d31);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.7;
+const dl = new THREE.DirectionalLight(0xffffff, 2.2); dl.position.set(1, 2, 3); scene.add(dl);
+const g = await new GLTFLoader().loadAsync('../assets/models/agilancer_arms.glb');
+const keys = ['iron','silver','gold','crimson','marble','azure','verdant','amethyst','solar','carbon'];
+const lances = new THREE.Group(), shields = new THREE.Group();
+keys.forEach((k, i) => {
+  const L = g.scene.getObjectByName('Lance_' + k), S = g.scene.getObjectByName('Shield_' + k);
+  // lance: re-centre and stand upright
+  const lb = new THREE.Box3().setFromObject(L); const lc = lb.getCenter(new THREE.Vector3());
+  L.position.sub(lc); const lw = new THREE.Group(); lw.add(L);
+  const axis = new THREE.Vector3(-0.3, 0, 1).normalize(); lw.quaternion.setFromUnitVectors(axis, new THREE.Vector3(0, 1, 0));
+  lw.position.set((i - 4.5) * 0.28, 0, 0); lances.add(lw);
+  const sb = new THREE.Box3().setFromObject(S); const sc = sb.getCenter(new THREE.Vector3());
+  S.position.sub(sc); const sw = new THREE.Group(); sw.add(S);
+  sw.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)); sw.rotateY(Math.PI);
+  sw.rotation.set(-Math.PI / 2, 0, Math.PI); // face +z, design up = +y
+  sw.position.set(((i % 5) - 2) * 0.72, i < 5 ? 0.38 : -0.38, 0); shields.add(sw);
+});
+scene.add(lances, shields);
+const cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 50);
+window.__views = ['lances', 'shields', 'shieldsback'];
+window.__setView = async (v) => {
+  lances.visible = v === 'lances'; shields.visible = v !== 'lances';
+  if (v === 'lances') { cam.position.set(0, 0, 4.2); cam.lookAt(0, 0, 0); }
+  else if (v === 'shields') { cam.position.set(0, 0, 4.0); cam.lookAt(0, 0, 0); }
+  else { cam.position.set(0, 0, -4.0); cam.lookAt(0, 0, 0); }
+  await new Promise(r => setTimeout(r, 200));
+};
+renderer.setAnimationLoop(() => renderer.render(scene, cam));
+window.__done = true;
+</script></body></html>

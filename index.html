@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agilancer Viewer</title>
+<link rel="stylesheet" href="src/viewer.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js",
+  "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js",
+  "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="loading"><div class="spinner"></div><div id="loading-text">Loading hero…</div></div>
+<aside id="panel" class="open">
+  <button id="panel-toggle" aria-label="Toggle panel">☰</button>
+  <div class="panel-body">
+    <header>
+      <h1>Agilancer</h1>
+      <div id="backend" class="badge"></div>
+    </header>
+    <section>
+      <h2>Animation <span id="anim-name" class="muted"></span></h2>
+      <input id="anim-search" type="search" placeholder="Filter animations…" autocomplete="off">
+      <div id="anim-list"></div>
+    </section>
+    <section>
+      <h2>Playback</h2>
+      <div class="row">
+        <button id="btn-play">Pause</button>
+        <button id="btn-prev" title="Previous animation">◀</button>
+        <button id="btn-next" title="Next animation">▶</button>
+        <label class="check"><input type="checkbox" id="chk-auto"> Auto-advance</label>
+      </div>
+      <label class="slider">Speed <input type="range" id="rng-speed" min="0.05" max="2" step="0.05" value="1"><output id="out-speed">1.00×</output></label>
+      <label class="check"><input type="checkbox" id="chk-rm"> Root motion (character travels)</label>
+    </section>
+    <section>
+      <h2>Lab coat physics</h2>
+      <label class="check"><input type="checkbox" id="chk-cloth" checked> Simulate coat body</label>
+      <label class="slider">Wind <input type="range" id="rng-wind" min="0" max="8" step="0.1" value="0"><output id="out-wind">0.0</output></label>
+      <label class="slider">Stiffness <input type="range" id="rng-iter" min="4" max="30" step="2" value="16"><output id="out-iter">16</output></label>
+      <div class="row">
+        <button id="btn-reset">Reset cloth</button>
+        <label class="check"><input type="checkbox" id="chk-col"> Show colliders</label>
+      </div>
+    </section>
+    <section id="sec-weapons">
+      <h2>Arms</h2>
+      <label class="select">Lance <select id="sel-lance"></select></label>
+      <label class="select">Shield <select id="sel-shield"></select></label>
+      <label class="check"><input type="checkbox" id="chk-weapons" checked> Show lance &amp; shield</label>
+    </section>
+    <footer class="muted" id="stats"></footer>
+  </div>
+</aside>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
