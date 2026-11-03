@@ -45,16 +45,16 @@
    -0.065
   ],
   "ala_l": [
-   0.0175,
-   -0.045
+   0.0165,
+   -0.049
   ],
   "ala_r": [
-   -0.0175,
-   -0.045
+   -0.0165,
+   -0.049
   ],
   "subnasale": [
    0.0,
-   -0.049
+   -0.051
   ]
  },
  "profile": {
@@ -95,7 +95,7 @@
   "mouth/mouth-angles-down": 0.3,
   "cheek/r-cheek-volume-incr": 0.1,
   "cheek/l-cheek-volume-incr": 0.1,
-  "mouth/mouth-cupidsbow-decr": 0.5,
+  "mouth/mouth-cupidsbow-decr": 0.15,
   "nose/nose-volume-incr": 0.4,
   "nose/nose-septumangle-incr": 0.2,
   "nose/nose-curve-convex": 0.3,
@@ -196,7 +196,8 @@
   "cranium_x": 0.16,
   "jaw_x": 0.09,
   "chin_drop": 0.008,
-  "dome": 0.008
+  "dome": 0.008,
+  "lower_lid_drop": 0.0025
  },
  "caps": {
   "mouth/mouth-scale-depth-decr": 0.8,
@@ -213,8 +214,8 @@
   "nose/nose-septumangle-decr": 0.0
  },
  "brow_paint_dy": [
-  -0.005,
-  -0.001
+  -0.002,
+  -0.0005
  ],
  "profile_eye": {
   "subnasale": [
@@ -228,6 +229,10 @@
   "glabella": [
    0.0335,
    0.5
+  ],
+  "nasion": [
+   0.035,
+   1.0
   ]
  },
  "front_weight": {

@@ -145,7 +145,7 @@ def _ss(e0, e1, x):
     return t * t * (3 - 2 * t)
 
 
-def warp(Y):
+def warp(Y, earw=None):
     """Direct proportion fixes the MakeHuman targets can't reach (measured on the
     client's frontal video frame, matched camera): a broader cranium that stays
     wide above the brows instead of tapering to an egg, a fuller jaw/jowl line,
@@ -161,6 +161,8 @@ def warp(Y):
     side_c = _ss(0.045, 0.07, ax) * (1 - _ss(0.025, 0.055, rel)) + _ss(0.025, 0.055, rel)
     # jaw/jowls: x grows below the cheekbones, fading out on the neck; the mouth/chin centre stays put
     kj = w.get('jaw_x', 0.0) * _ss(-0.005, -0.04, rel) * _ss(-0.150, -0.115, rel) * _ss(0.025, 0.060, ax)
+    if earw is not None:
+        kj = kj * (1 - earw)                         # the ears keep their own shape/position
     Y[:, 0] *= 1 + kc * side_c + kj
     # crown: a taller dome (client's skull is higher above the hairline)
     Y[:, 1] += w.get('dome', 0.0) * _ss(0.065, 0.105, rel)
@@ -197,7 +199,14 @@ def build():
         return Y
     # ---- head + neck cut out of the body
     body = [k for k, g in enumerate(G) if g == 'body']
-    Vh = warp(place(V))
+    ear_w = np.zeros(len(V))
+    for side in ('l', 'r'):
+        try:
+            D = np.linalg.norm(load_target(f'ears/{side}-ear-wing-incr', len(V)), axis=1)
+            ear_w = np.maximum(ear_w, np.clip(D / (0.15 * D.max()), 0, 1))
+        except Exception as e:
+            print('ear weights', e)
+    Vh = warp(place(V), ear_w)
     NECK_Z = -0.008
     rn_all = np.sqrt(Vh[:, 0] ** 2 + (Vh[:, 2] - NECK_Z) ** 2)
     keep = []
@@ -235,6 +244,22 @@ def build():
     eyes_V = warp(place(EVm))
     inward = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('eyeball_inward', 0.0)
     eyes_V[:, 0] -= np.sign(eyes_V[:, 0]) * inward          # critics: the irises sat ~2 mm too far out
+    # lower lids: drop the lid edge (critic: heavy-lidded, iris fully shown at the bottom) keeping the lid on the
+    # eyeball; tapers to 0 at both eye corners and fades out ~8 mm below the edge
+    drop = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('warp', {}).get('lower_lid_drop', 0.0)
+    if drop:
+        for sg in (1, -1):
+            E = eyes_V[eyes_V[:, 0] * sg > 0]
+            c = E.mean(0); r = np.linalg.norm(E - c, axis=1).mean()
+            rel = head_V - c
+            u = np.abs(rel[:, 0]) / 0.015                                     # 0 at the pupil, 1 at the corners
+            w = np.clip(1 - u ** 2, 0, 1) * _ss(0.001, -0.003, rel[:, 1]) * _ss(-0.016, -0.007, rel[:, 1]) * (rel[:, 2] > -0.002)
+            d0 = np.linalg.norm(rel, axis=1) - r
+            P2 = head_V.copy(); P2[:, 1] -= drop * w
+            near = (d0 < 0.003) & (w > 0)
+            rel2 = P2[near] - c
+            P2[near] = c + rel2 / np.linalg.norm(rel2, axis=1, keepdims=True) * (r + d0[near])[:, None]
+            head_V = P2
     # per-corner UVs for the eyes
     eyes_UV = EVT[ETT]
     # ---- landmarks along the facial midline (for aligning the face photo)

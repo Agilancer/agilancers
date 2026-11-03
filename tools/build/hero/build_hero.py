@@ -330,7 +330,8 @@ def hair_cap():
     V2, F2, N2, g2 = clip_mesh(V, F, N, g)
     _, above2, cd2 = field(V2)
     front = np.clip((V2[:, 2] - P.HEAD_CZ) / 0.09, 0, 1)
-    lift = (0.003 + 0.008 * front) * PT.smoothstep(0.0, 0.016, above2)
+    dome = 1 - 0.5 * PT.smoothstep(0.025, 0.045, np.abs(V2[:, 0]))              # rounded dome, no square shoulders
+    lift = (0.003 + 0.005 * front) * dome * PT.smoothstep(0.0, 0.016, above2)
     side_t = 0.0045 * PT.smoothstep(0.35, 0.8, cd2)                       # thick, fuzzy clipped sides
     top_t = (0.0024 + lift) * PT.smoothstep(0.0, 0.004, above2)
     t = np.maximum(side_t, top_t) * PT.smoothstep(0.0, 1.0, np.clip(g2, 0, 1))   # flush at the cut edge

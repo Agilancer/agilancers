@@ -439,7 +439,7 @@ def _lip_masks(Pt):
     dy = y - st[1]
     hu = 0.0050 * np.clip(1 - u, 0, 1) ** 1.1                      # upper lip red tapers to the corners
     upper = smoothstep(hu + 0.0007, hu - 0.0007, dy) * smoothstep(-0.0004, 0.0004, dy)
-    hl = 0.0050 * (1 - u ** 2)
+    hl = 0.0062 * (1 - u ** 2)
     lower = smoothstep(-hl - 0.0009, -hl + 0.0009, dy) * smoothstep(0.0004, -0.0004, dy)
     frontal = smoothstep(0.05, 0.09, z - P.HEAD_CZ)
     lips = np.clip((upper + lower) * (u < 1.0) * frontal, 0, 1)
@@ -493,7 +493,7 @@ def beard_masks(Pt, N):
     white = white * (1 - mous) + 0.12 * mous
     white = white * (1 - soul) + 0.10 * soul
     white = white * (1 - arms) + 0.12 * arms
-    white = white * (1 - chin) + 0.60 * chin
+    white = white * (1 - chin) + 0.65 * chin
     white = white * (1 - under * (1 - chin)) + 0.12 * under * (1 - chin)
     dens = np.clip(beard * (0.50 + 0.40 * mous + 0.25 * soul + 0.30 * arms + 0.15 * under + 0.20 * chin) * CLIENT.get('beard', 1.0), 0, 1)
     BEARD_ZONES['soul'] = soul; BEARD_ZONES['arms'] = arms
