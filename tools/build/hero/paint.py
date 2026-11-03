@@ -438,7 +438,9 @@ def beard_masks(Pt, N):
     beard *= 1 - np.clip(lips * 1.4, 0, 1)
     beard *= smoothstep(0.004, 0.010, ear_distance(Pt))                      # never on the ears
     beard *= 1 - smoothstep(0.0040, 0.0, -dy - 0.0050 * (1 - np.clip(u, 0, 1) ** 2)) * (dy < 0) * frontal * (u < 1)  # 2.5 mm bare under the lip
-    chin = smoothstep(st[1] - 0.016, st[1] - 0.030, y) * smoothstep(0.042, 0.026, ax)
+    # white chin: soft, irregular borders (no hard rectangle)
+    wob = value_noise(Pt, 0.005, 6.6) - 0.5
+    chin = smoothstep(st[1] - 0.014, st[1] - 0.032, y + 0.004 * wob) * smoothstep(0.050 + 0.008 * wob, 0.020, ax)
     under = smoothstep(-0.25, -0.55, N[:, 1]) if N is not None else 0.0
     white = 0.15 + 0.08 * smoothstep(45, 75, th)
     white = white * (1 - mous) + 0.05 * mous
