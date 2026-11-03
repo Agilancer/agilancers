@@ -145,7 +145,7 @@ def _ss(e0, e1, x):
     return t * t * (3 - 2 * t)
 
 
-def warp(Y, earw=None):
+def warp(Y, earw=None, nosew=None):
     """Direct proportion fixes the MakeHuman targets can't reach (measured on the
     client's frontal video frame, matched camera): a broader cranium that stays
     wide above the brows instead of tapering to an egg, a fuller jaw/jowl line,
@@ -163,7 +163,12 @@ def warp(Y, earw=None):
     kj = w.get('jaw_x', 0.0) * _ss(-0.005, -0.04, rel) * _ss(-0.150, -0.115, rel) * _ss(0.025, 0.060, ax)
     if earw is not None:
         kj = kj * (1 - earw)                         # the ears keep their own shape/position
-    Y[:, 0] *= 1 + kc * side_c + kj
+    kb = 0.0
+    if nosew is not None and w.get('bridge_narrow', 0.0):
+        # narrower nasal bridge (client: ~10 mm across vs ~17): pull the dorsum's sides toward the midline
+        # between the nasion and the lobule; the tip, alae and nostrils keep their width
+        kb = -w['bridge_narrow'] * np.sqrt(np.clip(nosew, 0, 1)) * _ss(0.016, 0.006, rel) * _ss(-0.036, -0.024, rel)
+    Y[:, 0] *= 1 + kc * side_c + kj + kb
     # crown: a taller dome (client's skull is higher above the hairline)
     Y[:, 1] += w.get('dome', 0.0) * _ss(0.065, 0.105, rel)
     # chin: stretch the face below the mouth line downward (front part only), fading out at the neck
@@ -173,6 +178,55 @@ def warp(Y, earw=None):
         k = _ss(-0.055, -0.115, rel) * _ss(-0.165, -0.125, rel)
         Y[:, 1] -= cd * k * front
     return Y
+
+
+def pack_uv(VT, TT, V3, T, margin=0.01):
+    """MakeHuman's own UVs for the head (one continuous face island instead of
+    hundreds of auto-unwrap islands), re-packed to fill the texture: islands keep
+    their relative texel density and are shelf-packed into [0,1]^2.
+    Returns per-corner UVs (n_tri, 3, 2)."""
+    n = len(VT)
+    parent = np.arange(n)
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]; a = parent[a]
+        return a
+    for t in TT:
+        r0 = find(t[0])
+        for a in t[1:]:
+            parent[find(a)] = r0
+    roots = np.array([find(t[0]) for t in TT])
+    isl = {r: i for i, r in enumerate(np.unique(roots))}
+    tid = np.array([isl[r] for r in roots])
+    UV = VT[TT].astype(np.float64)
+    boxes = []
+    for i in range(len(isl)):
+        q = UV[tid == i].reshape(-1, 2)
+        boxes.append((q.min(0), q.max(0)))
+    def place(scale):
+        order = sorted(range(len(boxes)), key=lambda i: -(boxes[i][1][1] - boxes[i][0][1]))
+        x = y = shelf = margin; pos = {}
+        for i in order:
+            w, h = (boxes[i][1] - boxes[i][0]) * scale
+            if x + w + margin > 1:
+                x = margin; y += shelf + margin; shelf = 0
+            pos[i] = (x, y); x += w + margin; shelf = max(shelf, h)
+        return pos, y + shelf + margin <= 1
+    lo, hi = 0.1, 10.0
+    for _ in range(40):
+        mid_ = (lo + hi) / 2
+        lo, hi = (mid_, hi) if place(mid_)[1] else (lo, mid_)
+    pos, _ = place(lo)
+    out = UV.copy()
+    for i in range(len(boxes)):
+        m = tid == i
+        out[m] = (UV[m] - boxes[i][0]) * lo + np.array(pos[i])
+    # texel density report (2048 map): px per mm on the face
+    a3 = np.linalg.norm(np.cross(V3[T[:, 1]] - V3[T[:, 0]], V3[T[:, 2]] - V3[T[:, 0]]), axis=1) / 2
+    e1, e2 = out[:, 1] - out[:, 0], out[:, 2] - out[:, 0]
+    a2 = np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]) / 2
+    print(f'UV islands {len(boxes)}  scale {lo:.2f}  median density @2048: {np.median(np.sqrt(a2 / np.maximum(a3, 1e-12))) * 2048 / 1000:.1f} px/mm')
+    return out
 
 
 def build():
@@ -206,7 +260,12 @@ def build():
             ear_w = np.maximum(ear_w, np.clip(D / (0.15 * D.max()), 0, 1))
         except Exception as e:
             print('ear weights', e)
-    Vh = warp(place(V), ear_w)
+    try:
+        Dn = np.linalg.norm(load_target('nose/nose-scale-horiz-incr', len(V)), axis=1)
+        nose_w = np.clip(Dn / (0.5 * Dn.max()), 0, 1)
+    except Exception as e:
+        print('nose weights', e); nose_w = None
+    Vh = warp(place(V), ear_w, nose_w)
     NECK_Z = -0.008
     rn_all = np.sqrt(Vh[:, 0] ** 2 + (Vh[:, 2] - NECK_Z) ** 2)
     keep = []
@@ -225,7 +284,7 @@ def build():
     Vh[:, 0] *= sc
     Vh[:, 2] = NECK_Z + (Vh[:, 2] - NECK_Z) * sc
     Fk = [F[k] for k in keep]
-    T, _ = triangulate(Fk)
+    T, TT = triangulate(Fk, [FT[k] for k in keep])
     used = np.unique(T)
     remap = -np.ones(len(V), int); remap[used] = np.arange(len(used))
     head_V = Vh[used]; head_F = remap[T]
@@ -290,8 +349,9 @@ def build():
           'head_joint': place(head_j[None])[0].tolist()}
     out = os.path.join(ROOT, 'build', 'cache')
     os.makedirs(out, exist_ok=True)
+    head_UV = pack_uv(VT, TT, Vh, T)
     np.savez(os.path.join(out, 'mh_head.npz'), V=head_V, F=head_F, EV=eyes_V, EF=ET, EUV=eyes_UV, base_idx=used,
-             xf=np.r_[s, mid, neck])
+             xf=np.r_[s, mid, neck], UV=head_UV)
     json.dump(lm, open(os.path.join(out, 'mh_landmarks.json'), 'w'), indent=1)
     print('head', head_V.shape, head_F.shape, 'eyes', eyes_V.shape, 'scale', s)
     print(json.dumps(lm, indent=1))

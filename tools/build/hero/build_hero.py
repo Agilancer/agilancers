@@ -42,24 +42,30 @@ def mirror(V, F):
     return V2, F[:, ::-1].copy()
 
 
-def sub(name, V, F, target, wfn=None, subdiv=0):
-    """Decimate (or Catmull-Clark smooth) one sub-part and compute its skin weights."""
+def sub(name, V, F, target, wfn=None, subdiv=0, uv=None):
+    """Decimate (or Catmull-Clark smooth) one sub-part and compute its skin weights.
+    uv: optional per-corner UVs (n_faces, 3, 2) carried through (no decimation then)."""
+    import blender_util as BU
     obj = make_mesh('_tmp_' + name, V, F)
+    if uv is not None:
+        BU.set_uv(obj, np.asarray(uv)[BU.LAST_KEPT].reshape(-1, 2))
     if subdiv:
-        import blender_util as BU
         m = obj.modifiers.new('cc', 'SUBSURF'); m.levels = subdiv; m.render_levels = subdiv
         m.boundary_smooth = 'PRESERVE_CORNERS'
+        m.uv_smooth = 'PRESERVE_BOUNDARIES'
         BU.apply_modifiers(obj)
         triangulate(obj)
-    decimate(obj, target)
+    if uv is None:
+        decimate(obj, target)
     triangulate(obj)
     V2, F2 = mesh_arrays(obj)
+    UV2 = get_loop_uv(obj).reshape(-1, 3, 2) if uv is not None else None
     bpy.data.objects.remove(obj, do_unlink=True)
     if wfn is None:
         W = WT.limit(WT.smooth(WT.transfer(V2), F2))
     else:
         W = wfn(V2, F2)
-    return dict(name=name, V=V2, F=F2, W=W)
+    return dict(name=name, V=V2, F=F2, W=W, UV=UV2)
 
 
 def vertex_ao(V, F, extra=(), rays=32, max_dist=0.04, strength=0.85):
@@ -92,7 +98,7 @@ def vertex_ao(V, F, extra=(), rays=32, max_dist=0.04, strength=0.85):
     return ao
 
 
-def ao_paint(paint, V, ao):
+def ao_paint(paint, V, ao, floor=None):
     from scipy.spatial import cKDTree
     tree = cKDTree(V)
     def f(Pt, N, *rest):
@@ -100,6 +106,8 @@ def ao_paint(paint, V, ao):
         d, idx = tree.query(Pt, k=4)
         w = 1 / np.maximum(d, 1e-5)
         a = (ao[idx] * w).sum(1) / w.sum(1)
+        if floor is not None:
+            a = np.maximum(a, floor(Pt))
         col = col * a[:, None]
         lum = col.mean(1, keepdims=True)                 # occlusion greys, it doesn't redden
         return col + (lum - col) * (0.5 * (1 - a))[:, None]
@@ -114,10 +122,15 @@ def assemble(name, subs, paint=None, size=1024, rough=0.7, metal=0.0, normal=Non
         off += len(s['V'])
     V, F, W, tid = np.concatenate(Vs), np.concatenate(Fs), np.concatenate(Ws), np.concatenate(ids)
     obj = make_mesh(name, V, F)
+    own_uv = all(s.get('UV') is not None for s in subs)
+    if own_uv:                                   # keep the parts' own UVs (e.g. MakeHuman's head layout)
+        import blender_util as BU
+        BU.set_uv(obj, np.concatenate([s['UV'] for s in subs])[BU.LAST_KEPT].reshape(-1, 2))
+    unwrap = (lambda o: None) if own_uv else smart_uv
     REBAKE = os.environ.get('REBAKE')
     cached = os.path.join(TEXDIR, name + '_albedo.jpg')
     if REBAKE and name not in REBAKE.split(',') and os.path.exists(cached) and not PREVIEW and paint is not None:
-        smart_uv(obj)
+        unwrap(obj)
         nrm = os.path.join(TEXDIR, name + '_normal.jpg')
         orm = os.path.join(TEXDIR, name + '_orm.png')
         mat = image_material('M_' + name, cached, nrm if os.path.exists(nrm) else None, rough, metal, double_sided=double_sided,
@@ -126,14 +139,15 @@ def assemble(name, subs, paint=None, size=1024, rough=0.7, metal=0.0, normal=Non
         mat = flat_material('M_' + name, color, rough, metal)
         mat.use_backface_culling = not double_sided
     else:
-        smart_uv(obj)
+        unwrap(obj)
         uv = get_loop_uv(obj)
         LT = loop_tris(obj)
         N = np_vertex_normals(V, F)
         if ao is not None:
             t_ao = time.time()
+            ao = dict(ao); fl = ao.pop('floor', None)
             aov = vertex_ao(V, F, **ao)
-            paint = ao_paint(paint, V, aov)
+            paint = ao_paint(paint, V, aov, fl)
             log(f'  ao {name}: {time.time()-t_ao:.0f}s')
         rgb, mask = bake(V, N, F, uv[LT], paint, size, tri_attr=tid)
         maps = write_maps(os.path.join(TEXDIR, name), rgb, mask, normal_strength=normal, detail_sigma=detail_sigma)
@@ -174,11 +188,11 @@ NOT_LIMBS = [b for b in BONES if not any(k in b for k in ['index', 'middle', 'ri
 # ---------------------------------------------------------------- head + ears
 # MakeHuman-generated head + neck (ears included), face photo warped onto its landmarks
 _mh = np.load(os.path.join(CACHE, 'mh_head.npz'))
-head_sub = sub('head', *load('head'), 30000, head_w, subdiv=1)      # MakeHuman's 'smooth' (4.4k-vertex head)
+head_sub = sub('head', *load('head'), 30000, head_w, subdiv=1)      # MakeHuman's 'smooth' (MakeHuman's own UVs: see pack_uv; too sparse at 2048)
 _mode = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('texture_mode', 'photo')
 head = assemble('Head', [head_sub], dispatch(PT.paint_head_clean if _mode == 'clean' else PT.paint_head),
                 size=2048, rough=0.62, normal=0.35, detail_sigma=2.5, color=(0.72, 0.50, 0.38),
-                ao=dict(rays=48, max_dist=0.02, strength=0.35),
+                ao=dict(rays=48, max_dist=0.02, strength=0.35, floor=PT.ao_floor),
                 orm_paint=dispatch(PT.head_roughness) if _mode == 'clean' else None)
 
 # MakeHuman high-poly eyeballs with MakeHuman's brown iris texture
@@ -206,9 +220,9 @@ else:
     sat = e.max(2, keepdims=True) - e.min(2, keepdims=True)
     iris = np.clip((sat - 0.12) / 0.15, 0, 1)
     tint = np.array([0.20, 0.17, 0.15])
-    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 0.8) * iris          # near black-brown iris
+    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 1.25) * iris          # near black-brown iris
     white = np.clip((lum - 0.55) / 0.2, 0, 1) * (1 - iris)
-    e2 = e2 * (1 - white) + e2 * np.array([0.55, 0.44, 0.44]) * white            # not paper-white sclera
+    e2 = e2 * (1 - white) + e2 * np.array([0.50, 0.39, 0.37]) * white            # not paper-white sclera
     from texlib import save_rgb as _sv
     _sv(os.path.join(TEXDIR, 'Eyes_albedo.jpg'), np.clip(e2, 0, 1), quality=94)
     eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.22))
@@ -325,14 +339,14 @@ def hair_cap():
     def field(X):
         above = X[:, 1] - P.hair_line(X)
         cd = PT.clipped_density(X)
-        return np.maximum(above / 0.004, (cd - 0.50) / 0.30), above, cd
+        return np.maximum(above / 0.004, (cd - 0.20) / 0.30), above, cd
     g, _, _ = field(V)
     V2, F2, N2, g2 = clip_mesh(V, F, N, g)
     _, above2, cd2 = field(V2)
     front = np.clip((V2[:, 2] - P.HEAD_CZ) / 0.09, 0, 1)
     dome = 1 - 0.5 * PT.smoothstep(0.025, 0.045, np.abs(V2[:, 0]))              # rounded dome, no square shoulders
     lift = (0.003 + 0.005 * front) * dome * PT.smoothstep(0.0, 0.016, above2)
-    side_t = 0.0045 * PT.smoothstep(0.35, 0.8, cd2)                       # thick, fuzzy clipped sides
+    side_t = 0.0045 * PT.smoothstep(0.2, 0.8, cd2)                        # thick, fuzzy clipped sides, tapering to the edge
     top_t = (0.0024 + lift) * PT.smoothstep(0.0, 0.004, above2)
     t = np.maximum(side_t, top_t) * PT.smoothstep(0.0, 1.0, np.clip(g2, 0, 1))   # flush at the cut edge
     return V2 + N2 * (t + 0.0003)[:, None], F2

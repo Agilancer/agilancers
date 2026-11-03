@@ -1,6 +1,6 @@
 {
  "_doc": "Likeness controls for the hero's face (client = reference). front/profile override the measured landmark targets in fit_face.py (metres); morph_add adds MakeHuman target weights after the fit; texture_mode 'clean' = MakeHuman-style painted skin (no photo); skin/texture tune colours; hairline sets the forehead/temple border of the long top hair.",
- "_round": "restart round 4: nose depth anchored to the eyes (client complaint), critic B round-3 notes",
+ "_round": "restart round 5: critics A+B round-4 notes, MakeHuman UV layout",
  "texture_mode": "clean",
  "lambda": 0.002,
  "front": {
@@ -85,21 +85,23 @@
   "forehead/forehead-temple-incr": 0.3,
   "eyes/r-eye-height2-incr": 0.3,
   "eyes/l-eye-height2-incr": 0.3,
-  "eyes/r-eye-eyefold-down": 0.4,
-  "eyes/l-eye-eyefold-down": 0.4,
+  "eyes/r-eye-eyefold-down": 0.8,
+  "eyes/l-eye-eyefold-down": 0.8,
   "ears/r-ear-wing-incr": 0.8,
   "ears/l-ear-wing-incr": 0.8,
   "ears/r-ear-scale-incr": 0.45,
   "ears/l-ear-scale-incr": 0.45,
-  "nose/nose-point-width-incr": 0.6,
   "mouth/mouth-angles-down": 0.3,
   "cheek/r-cheek-volume-incr": 0.1,
   "cheek/l-cheek-volume-incr": 0.1,
   "mouth/mouth-cupidsbow-decr": 0.15,
-  "nose/nose-volume-incr": 0.4,
   "nose/nose-septumangle-incr": 0.2,
   "nose/nose-curve-convex": 0.3,
-  "nose/nose-flaring-decr": 0.3
+  "nose/nose-flaring-decr": 0.3,
+  "nose/nose-point-up": 0.8,
+  "nose/nose-point-width-decr": 1.0,
+  "nose/nose-width2-decr": 1.0,
+  "nose/nose-width1-decr": 0.7
  },
  "eyeball_inward": 0.0015,
  "skin": {
@@ -140,8 +142,8 @@
   ],
   "lips_lower": [
    0.7,
-   0.4,
-   0.52
+   0.31,
+   0.4
   ],
   "brow_light": [
    0.34,
@@ -149,9 +151,14 @@
    0.24
   ],
   "beard_darkzone": [
-   0.24,
-   0.21,
-   0.19
+   0.3,
+   0.27,
+   0.24
+  ],
+  "beard_light_body": [
+   0.64,
+   0.61,
+   0.57
   ]
  },
  "texture": {
@@ -194,10 +201,11 @@
  ],
  "warp": {
   "cranium_x": 0.16,
-  "jaw_x": 0.09,
+  "jaw_x": 0.14,
   "chin_drop": 0.008,
   "dome": 0.008,
-  "lower_lid_drop": 0.0025
+  "lower_lid_drop": 0.0025,
+  "bridge_narrow": 0.35
  },
  "caps": {
   "mouth/mouth-scale-depth-decr": 0.8,
@@ -210,12 +218,16 @@
   "nose/nose-volume-decr": 0.0,
   "nose/nose-greek-incr": 0.3,
   "nose/nose-curve-concave": 0.0,
-  "nose/nose-point-up": 0.0,
-  "nose/nose-septumangle-decr": 0.0
+  "nose/nose-septumangle-decr": 0.0,
+  "nose/nose-point-width-incr": 0.0,
+  "nose/nose-volume-incr": 0.0,
+  "nose/nose-scale-horiz-incr": 0.0,
+  "nose/nose-width1-incr": 0.0,
+  "nose/nose-width2-incr": 0.0
  },
  "brow_paint_dy": [
-  -0.002,
-  -0.0005
+  -0.004,
+  -0.0015
  ],
  "profile_eye": {
   "subnasale": [
