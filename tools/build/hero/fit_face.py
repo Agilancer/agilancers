@@ -54,6 +54,11 @@ for k, v in TWEAKS.get('front', {}).items():
     FRONT[k] = tuple(v)
 for k, v in TWEAKS.get('profile', {}).items():
     PROFILE[k] = tuple(v)
+# absolute depths ahead of the eyeball centres (client profile frames, scaled by nose length): without these
+# every depth is relative to the subnasale, which sits on the nose itself, so the solver can push the whole
+# nose back into the face and still satisfy them
+PROFILE_EYE = {k: tuple(v) for k, v in TWEAKS.get('profile_eye', {}).items()}
+FRONT_W = TWEAKS.get('front_weight', {})
 
 
 def candidates():
@@ -95,6 +100,9 @@ def main():
     n = len(V0)
     Vm = V0.copy()
     for rel, w in MH.MACRO.items():
+        Vm += w * MH.load_target(rel, n)
+    # the hand-set morph additions are part of the base the fit works around (not stacked on afterwards)
+    for rel, w in TWEAKS.get('morph_add', {}).items():
         Vm += w * MH.load_target(rel, n)
     # landmark vertices (base-mesh indices) from the current head
     d = np.load(os.path.join(ROOT, 'build/cache/mh_head.npz'))
@@ -149,9 +157,12 @@ def main():
     def residual_vec(L):
         r = []
         for k, (x, y) in FRONT.items():
-            r += [L[k][0] - x, L[k][1] - y]
+            fw = FRONT_W.get(k, 1.0)
+            r += [fw * (L[k][0] - x), fw * (L[k][1] - y)]
         for k, (z, w) in PROFILE.items():
             r += [w * ((L[k][2] - L['subnasale'][2]) - z)]
+        for k, (z, w) in PROFILE_EYE.items():                # depth ahead of the eyeball centres
+            r += [w * (L[k][2] - z)]
         return np.array(r)
 
     L0 = landmark_matrix(Vm)
@@ -181,7 +192,7 @@ def main():
     w = sol.x
     r1 = r0 + A @ w
     print(f'targets {len(names)}  rms before {np.sqrt((r0**2).mean())*1000:.2f} mm  after {np.sqrt((r1**2).mean())*1000:.2f} mm')
-    labels = [f'{k}.{c}' for k in FRONT for c in 'xy'] + [f'{k}.z' for k in PROFILE]
+    labels = [f'{k}.{c}' for k in FRONT for c in 'xy'] + [f'{k}.z' for k in PROFILE] + [f'{k}.zeye' for k in PROFILE_EYE]
     for lab, a, b in zip(labels, r0, r1):
         if abs(a) > 0.002 or abs(b) > 0.002:
             print(f'   {lab:18s} {a*1000:+6.1f} -> {b*1000:+6.1f} mm')

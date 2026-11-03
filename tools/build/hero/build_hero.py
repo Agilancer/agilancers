@@ -177,7 +177,7 @@ _mh = np.load(os.path.join(CACHE, 'mh_head.npz'))
 head_sub = sub('head', *load('head'), 30000, head_w, subdiv=1)      # MakeHuman's 'smooth' (4.4k-vertex head)
 _mode = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('texture_mode', 'photo')
 head = assemble('Head', [head_sub], dispatch(PT.paint_head_clean if _mode == 'clean' else PT.paint_head),
-                size=2048, rough=0.62, normal=0.25, detail_sigma=2.5, color=(0.72, 0.50, 0.38),
+                size=2048, rough=0.62, normal=0.35, detail_sigma=2.5, color=(0.72, 0.50, 0.38),
                 ao=dict(rays=48, max_dist=0.02, strength=0.35),
                 orm_paint=dispatch(PT.head_roughness) if _mode == 'clean' else None)
 
@@ -205,13 +205,13 @@ else:
     lum = e.mean(2, keepdims=True)
     sat = e.max(2, keepdims=True) - e.min(2, keepdims=True)
     iris = np.clip((sat - 0.12) / 0.15, 0, 1)
-    tint = np.array([0.22, 0.16, 0.14])
+    tint = np.array([0.20, 0.17, 0.15])
     e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 0.8) * iris          # near black-brown iris
     white = np.clip((lum - 0.55) / 0.2, 0, 1) * (1 - iris)
-    e2 = e2 * (1 - white) + e2 * np.array([0.58, 0.47, 0.44]) * white            # not paper-white sclera
+    e2 = e2 * (1 - white) + e2 * np.array([0.55, 0.44, 0.44]) * white            # not paper-white sclera
     from texlib import save_rgb as _sv
     _sv(os.path.join(TEXDIR, 'Eyes_albedo.jpg'), np.clip(e2, 0, 1), quality=94)
-    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.12))
+    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.22))
 log('Eyes', len(_mh['EV']))
 
 def build_hair():
@@ -325,7 +325,7 @@ def hair_cap():
     def field(X):
         above = X[:, 1] - P.hair_line(X)
         cd = PT.clipped_density(X)
-        return np.maximum(above / 0.004, (cd - 0.35) / 0.30), above, cd
+        return np.maximum(above / 0.004, (cd - 0.50) / 0.30), above, cd
     g, _, _ = field(V)
     V2, F2, N2, g2 = clip_mesh(V, F, N, g)
     _, above2, cd2 = field(V2)
@@ -339,7 +339,7 @@ def hair_cap():
 
 capV, capF = hair_cap()
 hair = assemble('Hair', [dict(name='cap', V=capV, F=capF, W=WT.rigid(capV, 'Head')), sub('bun', *load('bun'), 2400, rigid_head)],
-                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.50, normal=0.9, detail_sigma=2.0, color=(0.15, 0.13, 0.11),
+                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.58, normal=0.45, orm_paint=dispatch(PT.hair_roughness, PT.bun_roughness), detail_sigma=2.0, color=(0.15, 0.13, 0.11),
                 ao=dict(rays=24, max_dist=0.02, strength=0.4))
 
 # ---------------------------------------------------------------- clothing

@@ -1,6 +1,6 @@
 {
  "_doc": "Likeness controls for the hero's face (client = reference). front/profile override the measured landmark targets in fit_face.py (metres); morph_add adds MakeHuman target weights after the fit; texture_mode 'clean' = MakeHuman-style painted skin (no photo); skin/texture tune colours; hairline sets the forehead/temple border of the long top hair.",
- "_round": "restart round 3: critics A+B round-2 notes applied",
+ "_round": "restart round 4: nose depth anchored to the eyes (client complaint), critic B round-3 notes",
  "texture_mode": "clean",
  "lambda": 0.002,
  "front": {
@@ -45,12 +45,12 @@
    -0.065
   ],
   "ala_l": [
-   0.0183,
-   -0.0423
+   0.0175,
+   -0.045
   ],
   "ala_r": [
-   -0.0183,
-   -0.0423
+   -0.0175,
+   -0.045
   ],
   "subnasale": [
    0.0,
@@ -91,11 +91,15 @@
   "ears/l-ear-wing-incr": 0.8,
   "ears/r-ear-scale-incr": 0.45,
   "ears/l-ear-scale-incr": 0.45,
-  "nose/nose-point-width-incr": 0.4,
+  "nose/nose-point-width-incr": 0.6,
   "mouth/mouth-angles-down": 0.3,
   "cheek/r-cheek-volume-incr": 0.1,
   "cheek/l-cheek-volume-incr": 0.1,
-  "mouth/mouth-cupidsbow-decr": 0.5
+  "mouth/mouth-cupidsbow-decr": 0.5,
+  "nose/nose-volume-incr": 0.4,
+  "nose/nose-septumangle-incr": 0.2,
+  "nose/nose-curve-convex": 0.3,
+  "nose/nose-flaring-decr": 0.3
  },
  "eyeball_inward": 0.0015,
  "skin": {
@@ -110,14 +114,14 @@
    0.36
   ],
   "lips": [
-   0.58,
-   0.29,
-   0.35
+   0.56,
+   0.26,
+   0.33
   ],
   "brow": [
    0.17,
-   0.11,
-   0.085
+   0.12,
+   0.1
   ],
   "beard_light": [
    0.74,
@@ -135,14 +139,19 @@
    0.33
   ],
   "lips_lower": [
-   0.62,
-   0.32,
-   0.42
+   0.7,
+   0.4,
+   0.52
   ],
   "brow_light": [
-   0.26,
-   0.19,
-   0.15
+   0.34,
+   0.28,
+   0.24
+  ],
+  "beard_darkzone": [
+   0.24,
+   0.21,
+   0.19
   ]
  },
  "texture": {
@@ -196,10 +205,35 @@
   "head/head-triangular": 0.0,
   "mouth/mouth-upperlip-volume-decr": 0.5,
   "cheek/r-cheek-volume-incr": 0.5,
-  "head/head-fat-incr": 0.3
+  "head/head-fat-incr": 0.3,
+  "nose/nose-volume-decr": 0.0,
+  "nose/nose-greek-incr": 0.3,
+  "nose/nose-curve-concave": 0.0,
+  "nose/nose-point-up": 0.0,
+  "nose/nose-septumangle-decr": 0.0
  },
  "brow_paint_dy": [
   -0.005,
   -0.001
- ]
+ ],
+ "profile_eye": {
+  "subnasale": [
+   0.0385,
+   1.5
+  ],
+  "tip": [
+   0.0515,
+   1.5
+  ],
+  "glabella": [
+   0.0335,
+   0.5
+  ]
+ },
+ "front_weight": {
+  "tip": 2.0,
+  "subnasale": 2.0,
+  "ala_l": 1.5,
+  "ala_r": 1.5
+ }
 }
