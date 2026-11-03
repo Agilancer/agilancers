@@ -100,7 +100,9 @@ def ao_paint(paint, V, ao):
         d, idx = tree.query(Pt, k=4)
         w = 1 / np.maximum(d, 1e-5)
         a = (ao[idx] * w).sum(1) / w.sum(1)
-        return col * a[:, None]
+        col = col * a[:, None]
+        lum = col.mean(1, keepdims=True)                 # occlusion greys, it doesn't redden
+        return col + (lum - col) * (0.5 * (1 - a))[:, None]
     return f
 
 
@@ -176,7 +178,7 @@ head_sub = sub('head', *load('head'), 30000, head_w, subdiv=1)      # MakeHuman'
 _mode = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('texture_mode', 'photo')
 head = assemble('Head', [head_sub], dispatch(PT.paint_head_clean if _mode == 'clean' else PT.paint_head),
                 size=2048, rough=0.62, normal=0.25, detail_sigma=2.5, color=(0.72, 0.50, 0.38),
-                ao=dict(rays=48, max_dist=0.02, strength=0.55),
+                ao=dict(rays=48, max_dist=0.02, strength=0.35),
                 orm_paint=dispatch(PT.head_roughness) if _mode == 'clean' else None)
 
 # MakeHuman high-poly eyeballs with MakeHuman's brown iris texture
@@ -203,13 +205,13 @@ else:
     lum = e.mean(2, keepdims=True)
     sat = e.max(2, keepdims=True) - e.min(2, keepdims=True)
     iris = np.clip((sat - 0.12) / 0.15, 0, 1)
-    tint = np.array([0.30, 0.20, 0.14])
-    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 1.1) * iris          # near black-brown iris
+    tint = np.array([0.22, 0.16, 0.14])
+    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 0.8) * iris          # near black-brown iris
     white = np.clip((lum - 0.55) / 0.2, 0, 1) * (1 - iris)
-    e2 = e2 * (1 - white) + e2 * np.array([0.72, 0.58, 0.55]) * white            # not paper-white sclera
+    e2 = e2 * (1 - white) + e2 * np.array([0.58, 0.47, 0.44]) * white            # not paper-white sclera
     from texlib import save_rgb as _sv
     _sv(os.path.join(TEXDIR, 'Eyes_albedo.jpg'), np.clip(e2, 0, 1), quality=94)
-    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.06))
+    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.12))
 log('Eyes', len(_mh['EV']))
 
 def build_hair():
@@ -250,56 +252,94 @@ def build_hair():
     log('Hair', len(V))
 
 
+def clip_mesh(V, F, N, g):
+    """Keep the part of a triangle mesh where the scalar field g >= 0, cutting
+    triangles exactly along the g = 0 contour (shared edge points, winding
+    preserved). Returns (V, F, N, g) of the clipped mesh."""
+    inside = g[F] >= 0
+    n_in = inside.sum(1)
+    keep = F[n_in == 3]
+    nv = len(V)
+    new_tris, edges = [], []
+
+    def epoint(i, j):
+        edges.append(np.stack([i, j], 1))
+        return len(edges) - 1
+    # one vertex inside: (a, E(ab), E(ac))
+    m1 = n_in == 1
+    if m1.any():
+        k = np.argmax(inside[m1], 1)
+        T = F[m1]
+        a_, b_, c_ = T[np.arange(len(T)), k], T[np.arange(len(T)), (k + 1) % 3], T[np.arange(len(T)), (k + 2) % 3]
+        new_tris.append(('one', a_, epoint(a_, b_), epoint(a_, c_)))
+    # two inside: c outside -> (a, b, E(bc)), (a, E(bc), E(ca))
+    m2 = n_in == 2
+    if m2.any():
+        k = np.argmin(inside[m2], 1)
+        T = F[m2]
+        c_, a_, b_ = T[np.arange(len(T)), k], T[np.arange(len(T)), (k + 1) % 3], T[np.arange(len(T)), (k + 2) % 3]
+        new_tris.append(('two', a_, b_, epoint(b_, c_), epoint(c_, a_)))
+    if not edges:
+        used = np.unique(keep); rm = -np.ones(nv, int); rm[used] = np.arange(len(used))
+        return V[used], rm[keep], N[used], g[used]
+    allE = np.concatenate(edges)
+    key = np.minimum(allE[:, 0], allE[:, 1]) * nv + np.maximum(allE[:, 0], allE[:, 1])
+    ukey, inv = np.unique(key, return_inverse=True)
+    i0, j0 = ukey // nv, ukey % nv
+    t = g[i0] / (g[i0] - g[j0])
+    EV = V[i0] + (V[j0] - V[i0]) * t[:, None]
+    EN = N[i0] + (N[j0] - N[i0]) * t[:, None]
+    EN /= np.linalg.norm(EN, axis=1, keepdims=True)
+    offs = np.cumsum([0] + [len(e) for e in edges])
+    eid = lambda block: nv + inv[offs[block]:offs[block + 1]]
+    tris = [keep]
+    blk = 0
+    for item in new_tris:
+        if item[0] == 'one':
+            _, a_, e1, e2 = item
+            tris.append(np.stack([a_, eid(e1), eid(e2)], 1))
+        else:
+            _, a_, b_, e1, e2 = item
+            tris.append(np.stack([a_, b_, eid(e1)], 1)); tris.append(np.stack([a_, eid(e1), eid(e2)], 1))
+    FF = np.concatenate(tris)
+    VV = np.concatenate([V, EV]); NN = np.concatenate([N, EN]); GG = np.concatenate([g, np.zeros(len(EV))])
+    used = np.unique(FF); rm = -np.ones(len(VV), int); rm[used] = np.arange(len(used))
+    return VV[used], rm[FF], NN[used], GG[used]
+
+
 def hair_cap():
-    """Hair as one shell grown from the scalp: the long top (~4 mm, lifted to
-    ~11 mm at the front) continuing into the clipper-short sides/back/temples
-    (~2.4 mm), so the head never reads bald from the front and there is no
-    hard edge where the two cuts meet. Ears stay bare. The MakeHuman scalp is
-    coarse, so the region is subdivided first and grown along smoothed normals
-    (no fins or folds)."""
-    import blender_util as BU
+    """Hair as one shell grown from the scalp: the long slicked-back top
+    (lifted toward the front) continuing into the thicker clipper-cut sides,
+    temples and sideburns. The shell is cut exactly along the hairline /
+    clipped-hair contour and is flush with the scalp at that edge, so the
+    border is smooth (no triangle saw-teeth, no visor). Ears stay bare."""
     V, F = head_sub['V'], head_sub['F']
-    above = V[:, 1] - P.hair_line(V)
-    cover = np.maximum(PT.clipped_density(V), PT.smoothstep(-0.004, 0.0, above))
-    keep = (cover[F] > 0.30).all(1)
-    Fc = F[keep]
-    used = np.unique(Fc)
-    remap = -np.ones(len(V), int); remap[used] = np.arange(len(used))
-    obj = make_mesh('_cap', V[used], remap[Fc])
-    m = obj.modifiers.new('sub', 'SUBSURF'); m.subdivision_type = 'SIMPLE'; m.levels = 1; m.render_levels = 1
-    BU.apply_modifiers(obj)
-    triangulate(obj)
-    V2, F2 = mesh_arrays(obj)
-    bpy.data.objects.remove(obj, do_unlink=True)
-    # base normals from the full head (smooth), interpolated by nearest original vertices, then smoothed on the cap
-    Nh = np_vertex_normals(V, F)
-    from scipy.spatial import cKDTree
-    dd, ii = cKDTree(V).query(V2, k=4)
-    w = 1.0 / np.maximum(dd, 1e-5); w /= w.sum(1, keepdims=True)
-    N2 = (Nh[ii] * w[..., None]).sum(1)
-    E = np.r_[F2[:, [0, 1]], F2[:, [1, 2]], F2[:, [2, 0]]]
-    for _ in range(6):
-        acc = N2.copy(); cnt = np.ones(len(V2))
-        np.add.at(acc, E[:, 0], N2[E[:, 1]]); np.add.at(cnt, E[:, 0], 1)
-        np.add.at(acc, E[:, 1], N2[E[:, 0]]); np.add.at(cnt, E[:, 1], 1)
-        N2 = acc / cnt[:, None]
-    N2 /= np.linalg.norm(N2, axis=1, keepdims=True)
-    above2 = V2[:, 1] - P.hair_line(V2)
-    cover2 = np.maximum(PT.clipped_density(V2), PT.smoothstep(-0.004, 0.0, above2))
+    N = np_vertex_normals(V, F)
+    E = np.r_[F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]
+    for _ in range(4):                                   # smooth normals: no folds where the shell is thick
+        acc = N.copy(); cnt = np.ones(len(V))
+        np.add.at(acc, E[:, 0], N[E[:, 1]]); np.add.at(cnt, E[:, 0], 1)
+        np.add.at(acc, E[:, 1], N[E[:, 0]]); np.add.at(cnt, E[:, 1], 1)
+        N = acc / cnt[:, None]
+    N /= np.linalg.norm(N, axis=1, keepdims=True)
+    def field(X):
+        above = X[:, 1] - P.hair_line(X)
+        cd = PT.clipped_density(X)
+        return np.maximum(above / 0.004, (cd - 0.35) / 0.30), above, cd
+    g, _, _ = field(V)
+    V2, F2, N2, g2 = clip_mesh(V, F, N, g)
+    _, above2, cd2 = field(V2)
     front = np.clip((V2[:, 2] - P.HEAD_CZ) / 0.09, 0, 1)
-    lift = (0.003 + 0.006 * front) * PT.smoothstep(-0.001, 0.014, above2)        # slicked top with a ledge over the clipped sides
-    t = 0.0024 * cover2 + lift
-    obj = make_mesh('_cap2', V2 + N2 * (t + 0.0003)[:, None], F2)
-    decimate(obj, 18000)
-    triangulate(obj)
-    V3, F3 = mesh_arrays(obj)
-    bpy.data.objects.remove(obj, do_unlink=True)
-    return V3, F3
+    lift = (0.003 + 0.008 * front) * PT.smoothstep(0.0, 0.016, above2)
+    side_t = 0.0045 * PT.smoothstep(0.35, 0.8, cd2)                       # thick, fuzzy clipped sides
+    top_t = (0.0024 + lift) * PT.smoothstep(0.0, 0.004, above2)
+    t = np.maximum(side_t, top_t) * PT.smoothstep(0.0, 1.0, np.clip(g2, 0, 1))   # flush at the cut edge
+    return V2 + N2 * (t + 0.0003)[:, None], F2
 
 
 capV, capF = hair_cap()
 hair = assemble('Hair', [dict(name='cap', V=capV, F=capF, W=WT.rigid(capV, 'Head')), sub('bun', *load('bun'), 2400, rigid_head)],
-                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.50, normal=1.8, detail_sigma=2.0, color=(0.15, 0.13, 0.11),
+                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.50, normal=0.9, detail_sigma=2.0, color=(0.15, 0.13, 0.11),
                 ao=dict(rays=24, max_dist=0.02, strength=0.4))
 
 # ---------------------------------------------------------------- clothing

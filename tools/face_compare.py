@@ -10,7 +10,7 @@ FRAMES = os.environ.get('HEADVID', '')
 CROP = (180, 1400, 1980, 3476)          # client frame window shown in the sheet
 CD = float(os.environ.get('CMP_DIST', '0.46'))     # ~0.38 m eye-to-phone, front camera at arm's length
 CLIENT_EYES = {'f_015.jpg': (804, 2252)}            # pupil midpoint in the frame     # camera distance from the head centre
-DROP = float(os.environ.get('CMP_DROP', '0.07'))   # phone below eye level
+DROP = float(os.environ.get('CMP_DROP', '0.04'))   # phone below eye level
 PAIRS = [('f_001.jpg', 68), ('f_007.jpg', 38), ('f_015.jpg', 0), ('f_023.jpg', -32), ('f_031.jpg', -78)]
 
 

@@ -1,6 +1,6 @@
 {
  "_doc": "Likeness controls for the hero's face (client = reference). front/profile override the measured landmark targets in fit_face.py (metres); morph_add adds MakeHuman target weights after the fit; texture_mode 'clean' = MakeHuman-style painted skin (no photo); skin/texture tune colours; hairline sets the forehead/temple border of the long top hair.",
- "_round": "restart round 2: critics A+B round-1 notes applied",
+ "_round": "restart round 3: critics A+B round-2 notes applied",
  "texture_mode": "clean",
  "lambda": 0.002,
  "front": {
@@ -34,7 +34,7 @@
   ],
   "tip": [
    0.0,
-   -0.029
+   -0.035
   ],
   "mouth_l": [
    0.0275,
@@ -54,24 +54,24 @@
   ],
   "subnasale": [
    0.0,
-   -0.0475
+   -0.049
   ]
  },
  "profile": {
   "tip": [
-   0.019,
+   0.015,
    1.0
   ],
   "nasion": [
-   -0.002,
+   -0.0035,
    0.8
   ],
   "ulip": [
-   0.0045,
+   0.0035,
    0.8
   ],
   "llip": [
-   0.0035,
+   0.003,
    0.8
   ],
   "pogonion": [
@@ -83,10 +83,10 @@
   "head/head-square": 0.15,
   "neck/neck-double-incr": 0.5,
   "forehead/forehead-temple-incr": 0.3,
-  "eyes/r-eye-height2-incr": 0.1,
-  "eyes/l-eye-height2-incr": 0.1,
-  "eyes/r-eye-eyefold-down": 0.18,
-  "eyes/l-eye-eyefold-down": 0.18,
+  "eyes/r-eye-height2-incr": 0.3,
+  "eyes/l-eye-height2-incr": 0.3,
+  "eyes/r-eye-eyefold-down": 0.4,
+  "eyes/l-eye-eyefold-down": 0.4,
   "ears/r-ear-wing-incr": 0.8,
   "ears/l-ear-wing-incr": 0.8,
   "ears/r-ear-scale-incr": 0.45,
@@ -94,7 +94,8 @@
   "nose/nose-point-width-incr": 0.4,
   "mouth/mouth-angles-down": 0.3,
   "cheek/r-cheek-volume-incr": 0.1,
-  "cheek/l-cheek-volume-incr": 0.1
+  "cheek/l-cheek-volume-incr": 0.1,
+  "mouth/mouth-cupidsbow-decr": 0.5
  },
  "eyeball_inward": 0.0015,
  "skin": {
@@ -119,19 +120,29 @@
    0.085
   ],
   "beard_light": [
-   0.86,
-   0.85,
-   0.83
+   0.74,
+   0.71,
+   0.68
   ],
   "beard_dark": [
-   0.26,
-   0.21,
-   0.18
+   0.36,
+   0.32,
+   0.29
   ],
   "ear": [
-   0.7,
-   0.3,
-   0.27
+   0.72,
+   0.38,
+   0.33
+  ],
+  "lips_lower": [
+   0.62,
+   0.32,
+   0.42
+  ],
+  "brow_light": [
+   0.26,
+   0.19,
+   0.15
   ]
  },
  "texture": {
@@ -160,13 +171,13 @@
    180
   ],
   [
+   1.782,
+   1.781,
    1.778,
-   1.777,
-   1.774,
-   1.772,
-   1.774,
    1.776,
-   1.772,
+   1.778,
+   1.778,
+   1.774,
    1.764,
    1.752,
    1.745
@@ -174,7 +185,7 @@
  ],
  "warp": {
   "cranium_x": 0.16,
-  "jaw_x": 0.0,
+  "jaw_x": 0.09,
   "chin_drop": 0.008,
   "dome": 0.008
  },
@@ -188,7 +199,7 @@
   "head/head-fat-incr": 0.3
  },
  "brow_paint_dy": [
-  -0.0025,
-  0.003
+  -0.005,
+  -0.001
  ]
 }
