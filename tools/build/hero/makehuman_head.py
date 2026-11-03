@@ -162,6 +162,8 @@ def warp(Y):
     # jaw/jowls: x grows below the cheekbones, fading out on the neck; the mouth/chin centre stays put
     kj = w.get('jaw_x', 0.0) * _ss(-0.005, -0.04, rel) * _ss(-0.150, -0.115, rel) * _ss(0.025, 0.060, ax)
     Y[:, 0] *= 1 + kc * side_c + kj
+    # crown: a taller dome (client's skull is higher above the hairline)
+    Y[:, 1] += w.get('dome', 0.0) * _ss(0.065, 0.105, rel)
     # chin: stretch the face below the mouth line downward (front part only), fading out at the neck
     cd = w.get('chin_drop', 0.0)
     if cd:
@@ -203,12 +205,14 @@ def build():
         f = F[k]
         ys = Vh[f, 1]
         # neck down into the tee collar; drop the shoulder/trapezius flare
-        if ys.min() > 1.36 and not (ys.max() < 1.545 and rn_all[f].max() > 0.088):
+        if ys.min() > 1.36 and not (ys.max() < 1.545 and rn_all[f].max() > 0.088 and np.abs(Vh[f, 0]).max() > 0.06):
             keep.append(k)
     # pull the neck base into a cylinder that stays inside the tee's rib collar
     t = np.clip((1.545 - Vh[:, 1]) / 0.05, 0, 1)
     rmax = 0.0615 + (1 - t) * 0.016
+    rmin = rmax - 0.005                                   # and never thinner than the collar opening (no gap)
     sc = np.where((Vh[:, 1] < 1.545) & (rn_all > rmax), rmax / np.maximum(rn_all, 1e-9), 1.0)
+    sc = np.where((Vh[:, 1] < 1.545) & (rn_all < rmin) & (rn_all > 0.02), rmin / np.maximum(rn_all, 1e-9), sc)
     Vh[:, 0] *= sc
     Vh[:, 2] = NECK_Z + (Vh[:, 2] - NECK_Z) * sc
     Fk = [F[k] for k in keep]

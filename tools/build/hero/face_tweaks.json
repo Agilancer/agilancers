@@ -1,15 +1,15 @@
 {
  "_doc": "Likeness controls for the hero's face (client = reference). front/profile override the measured landmark targets in fit_face.py (metres); morph_add adds MakeHuman target weights after the fit; texture_mode 'clean' = MakeHuman-style painted skin (no photo); skin/texture tune colours; hairline sets the forehead/temple border of the long top hair.",
- "_round": "restart: MakeHuman head fitted to the client's video proportions, clean painted skin + grooming (no photo projection)",
+ "_round": "restart round 2: critics A+B round-1 notes applied",
  "texture_mode": "clean",
  "lambda": 0.002,
  "front": {
   "gonion_l": [
-   0.074,
+   0.071,
    -0.072
   ],
   "gonion_r": [
-   -0.074,
+   -0.071,
    -0.072
   ],
   "menton": [
@@ -45,12 +45,16 @@
    -0.065
   ],
   "ala_l": [
-   0.0165,
+   0.0183,
    -0.0423
   ],
   "ala_r": [
-   -0.0165,
+   -0.0183,
    -0.0423
+  ],
+  "subnasale": [
+   0.0,
+   -0.0475
   ]
  },
  "profile": {
@@ -76,60 +80,58 @@
   ]
  },
  "morph_add": {
-  "head/head-fat-incr": 0.15,
   "head/head-square": 0.15,
-  "cheek/r-cheek-volume-incr": 0.15,
-  "cheek/l-cheek-volume-incr": 0.15,
-  "chin/chin-width-incr": 0.2,
   "neck/neck-double-incr": 0.5,
-  "eyes/r-eye-height2-decr": 0.25,
-  "eyes/l-eye-height2-decr": 0.25,
-  "eyes/r-eye-eyefold-down": 0.25,
-  "eyes/l-eye-eyefold-down": 0.25,
   "forehead/forehead-temple-incr": 0.3,
-  "mouth/mouth-lowerlip-volume-incr": 0.25,
-  "nose/nose-flaring-decr": 0.6,
-  "nose/nose-nostrils-width-decr": 0.5,
-  "nose/nose-width3-decr": 0.4,
+  "eyes/r-eye-height2-incr": 0.1,
+  "eyes/l-eye-height2-incr": 0.1,
+  "eyes/r-eye-eyefold-down": 0.18,
+  "eyes/l-eye-eyefold-down": 0.18,
   "ears/r-ear-wing-incr": 0.8,
   "ears/l-ear-wing-incr": 0.8,
   "ears/r-ear-scale-incr": 0.45,
   "ears/l-ear-scale-incr": 0.45,
-  "eyes/r-eye-scale-incr": 0.35,
-  "eyes/l-eye-scale-incr": 0.35,
-  "nose/nose-base-down": 0.6
+  "nose/nose-point-width-incr": 0.4,
+  "mouth/mouth-angles-down": 0.3,
+  "cheek/r-cheek-volume-incr": 0.1,
+  "cheek/l-cheek-volume-incr": 0.1
  },
  "eyeball_inward": 0.0015,
  "skin": {
   "base": [
-   0.76,
-   0.52,
-   0.44
+   0.74,
+   0.48,
+   0.4
   ],
   "ruddy": [
-   0.76,
-   0.36,
-   0.32
+   0.75,
+   0.35,
+   0.36
   ],
   "lips": [
-   0.62,
-   0.33,
-   0.33
+   0.58,
+   0.29,
+   0.35
   ],
   "brow": [
-   0.12,
-   0.095,
-   0.08
+   0.17,
+   0.11,
+   0.085
   ],
   "beard_light": [
-   0.72,
-   0.7,
-   0.67
+   0.86,
+   0.85,
+   0.83
   ],
   "beard_dark": [
    0.26,
    0.21,
    0.18
+  ],
+  "ear": [
+   0.7,
+   0.3,
+   0.27
   ]
  },
  "texture": {
@@ -171,15 +173,22 @@
   ]
  ],
  "warp": {
-  "cranium_x": 0.22,
-  "jaw_x": 0.07,
-  "chin_drop": 0.008
+  "cranium_x": 0.16,
+  "jaw_x": 0.0,
+  "chin_drop": 0.008,
+  "dome": 0.008
  },
  "caps": {
-  "mouth/mouth-scale-depth-decr": 0.5,
-  "mouth/mouth-trans-backward": 0.3,
-  "nose/nose-base-up": 0.5,
+  "mouth/mouth-scale-depth-decr": 0.8,
+  "mouth/mouth-trans-backward": 0.6,
+  "nose/nose-base-up": 0.0,
   "head/head-triangular": 0.0,
-  "mouth/mouth-upperlip-volume-decr": 0.5
- }
+  "mouth/mouth-upperlip-volume-decr": 0.5,
+  "cheek/r-cheek-volume-incr": 0.5,
+  "head/head-fat-incr": 0.3
+ },
+ "brow_paint_dy": [
+  -0.0025,
+  0.003
+ ]
 }

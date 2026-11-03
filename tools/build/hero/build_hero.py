@@ -104,7 +104,7 @@ def ao_paint(paint, V, ao):
     return f
 
 
-def assemble(name, subs, paint=None, size=1024, rough=0.7, metal=0.0, normal=None, double_sided=False, detail_sigma=4.0, color=(0.5, 0.5, 0.5), ao=None):
+def assemble(name, subs, paint=None, size=1024, rough=0.7, metal=0.0, normal=None, double_sided=False, detail_sigma=4.0, color=(0.5, 0.5, 0.5), ao=None, orm_paint=None):
     Vs, Fs, Ws, ids = [], [], [], []
     off = 0
     for i, s in enumerate(subs):
@@ -117,7 +117,9 @@ def assemble(name, subs, paint=None, size=1024, rough=0.7, metal=0.0, normal=Non
     if REBAKE and name not in REBAKE.split(',') and os.path.exists(cached) and not PREVIEW and paint is not None:
         smart_uv(obj)
         nrm = os.path.join(TEXDIR, name + '_normal.jpg')
-        mat = image_material('M_' + name, cached, nrm if os.path.exists(nrm) else None, rough, metal, double_sided=double_sided)
+        orm = os.path.join(TEXDIR, name + '_orm.png')
+        mat = image_material('M_' + name, cached, nrm if os.path.exists(nrm) else None, rough, metal, double_sided=double_sided,
+                             orm_path=orm if (orm_paint is not None and os.path.exists(orm)) else None)
     elif PREVIEW or paint is None:
         mat = flat_material('M_' + name, color, rough, metal)
         mat.use_backface_culling = not double_sided
@@ -133,7 +135,13 @@ def assemble(name, subs, paint=None, size=1024, rough=0.7, metal=0.0, normal=Non
             log(f'  ao {name}: {time.time()-t_ao:.0f}s')
         rgb, mask = bake(V, N, F, uv[LT], paint, size, tri_attr=tid)
         maps = write_maps(os.path.join(TEXDIR, name), rgb, mask, normal_strength=normal, detail_sigma=detail_sigma)
-        mat = image_material('M_' + name, maps['albedo'], maps.get('normal'), rough, metal, double_sided=double_sided)
+        orm = None
+        if orm_paint is not None:                      # per-texel roughness (G) / metal (B)
+            orgb, _ = bake(V, N, F, uv[LT], orm_paint, size // 2, tri_attr=tid)
+            orm = os.path.join(TEXDIR, name + '_orm.png')
+            from PIL import Image as _I
+            _I.fromarray((np.clip(orgb, 0, 1) * 255).astype(np.uint8)).save(orm)
+        mat = image_material('M_' + name, maps['albedo'], maps.get('normal'), rough, metal, double_sided=double_sided, orm_path=orm)
     obj.data.materials.append(mat)
     skin(obj, arm, W, BONES)
     log(f'{name}: {len(V)} verts {len(F)} tris')
@@ -167,8 +175,9 @@ _mh = np.load(os.path.join(CACHE, 'mh_head.npz'))
 head_sub = sub('head', *load('head'), 30000, head_w, subdiv=1)      # MakeHuman's 'smooth' (4.4k-vertex head)
 _mode = json.load(open(os.path.join(HERE, 'face_tweaks.json'))).get('texture_mode', 'photo')
 head = assemble('Head', [head_sub], dispatch(PT.paint_head_clean if _mode == 'clean' else PT.paint_head),
-                size=2048, rough=0.62, normal=0.9, detail_sigma=2.5, color=(0.72, 0.50, 0.38),
-                ao=dict(rays=48, max_dist=0.02, strength=0.55))
+                size=2048, rough=0.62, normal=0.25, detail_sigma=2.5, color=(0.72, 0.50, 0.38),
+                ao=dict(rays=48, max_dist=0.02, strength=0.55),
+                orm_paint=dispatch(PT.head_roughness) if _mode == 'clean' else None)
 
 # MakeHuman high-poly eyeballs with MakeHuman's brown iris texture
 _mh = np.load(os.path.join(CACHE, 'mh_head.npz'))
@@ -186,7 +195,7 @@ else:
     _yy, _xx = np.mgrid[0:e.shape[0], 0:e.shape[1]].astype(np.float32)
     _sx, _sy = _xx.copy(), _yy.copy()
     for _cx, _cy in ((721.0, 299.7), (295.0, 721.7)):
-        _r = np.hypot(_xx - _cx, _yy - _cy); R0, k = 118.0, 1.18
+        _r = np.hypot(_xx - _cx, _yy - _cy); R0, k = 118.0, 0.95
         f = np.where(_r < R0 * k, 1 / k, 1 / k + (1 - 1 / k) * np.clip((_r - R0 * k) / (R0 * 0.5), 0, 1))
         m = _r < R0 * (k + 0.5)
         _sx[m] = _cx + (_xx[m] - _cx) * f[m]; _sy[m] = _cy + (_yy[m] - _cy) * f[m]
@@ -195,12 +204,12 @@ else:
     sat = e.max(2, keepdims=True) - e.min(2, keepdims=True)
     iris = np.clip((sat - 0.12) / 0.15, 0, 1)
     tint = np.array([0.30, 0.20, 0.14])
-    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 0.34) * iris          # near black-brown iris
+    e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean() * 1.1) * iris          # near black-brown iris
     white = np.clip((lum - 0.55) / 0.2, 0, 1) * (1 - iris)
-    e2 = e2 * (1 - white) + e2 * np.array([0.68, 0.60, 0.56]) * white            # not paper-white sclera
+    e2 = e2 * (1 - white) + e2 * np.array([0.72, 0.58, 0.55]) * white            # not paper-white sclera
     from texlib import save_rgb as _sv
     _sv(os.path.join(TEXDIR, 'Eyes_albedo.jpg'), np.clip(e2, 0, 1), quality=94)
-    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.30))
+    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.06))
 log('Eyes', len(_mh['EV']))
 
 def build_hair():
@@ -278,7 +287,7 @@ def hair_cap():
     above2 = V2[:, 1] - P.hair_line(V2)
     cover2 = np.maximum(PT.clipped_density(V2), PT.smoothstep(-0.004, 0.0, above2))
     front = np.clip((V2[:, 2] - P.HEAD_CZ) / 0.09, 0, 1)
-    lift = (0.0018 + 0.0072 * front) * PT.smoothstep(0.0, 0.026, above2)
+    lift = (0.003 + 0.006 * front) * PT.smoothstep(-0.001, 0.014, above2)        # slicked top with a ledge over the clipped sides
     t = 0.0024 * cover2 + lift
     obj = make_mesh('_cap2', V2 + N2 * (t + 0.0003)[:, None], F2)
     decimate(obj, 18000)
@@ -290,7 +299,7 @@ def hair_cap():
 
 capV, capF = hair_cap()
 hair = assemble('Hair', [dict(name='cap', V=capV, F=capF, W=WT.rigid(capV, 'Head')), sub('bun', *load('bun'), 2400, rigid_head)],
-                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.66, normal=1.8, detail_sigma=2.0, color=(0.15, 0.13, 0.11),
+                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.50, normal=1.8, detail_sigma=2.0, color=(0.15, 0.13, 0.11),
                 ao=dict(rays=24, max_dist=0.02, strength=0.4))
 
 # ---------------------------------------------------------------- clothing
