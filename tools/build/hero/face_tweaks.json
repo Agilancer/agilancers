@@ -71,7 +71,7 @@
    0.8
   ],
   "llip": [
-   0.001,
+   0.003,
    0.8
   ],
   "pogonion": [
@@ -98,7 +98,9 @@
   "nose/nose-point-up": 0.2,
   "nose/nose-point-width-decr": 0.5,
   "nose/nose-width2-decr": 0.5,
-  "nose/nose-width1-decr": 0.7
+  "nose/nose-width1-decr": 0.7,
+  "nose/nose-hump-decr": 0.6,
+  "nose/nose-curve-concave": 0.3
  },
  "eyeball_inward": 0.0015,
  "skin": {
@@ -203,8 +205,8 @@
   "dome": 0.004,
   "lower_lid_drop": 0.0045,
   "bridge_narrow": 0.0,
-  "forehead_forward": 0.006,
-  "mandible_forward": 0.006,
+  "forehead_forward": 0.01,
+  "mandible_forward": 0.0045,
   "upper_lip_back": 0.002,
   "eyes_back": 0.002
  },
@@ -217,8 +219,7 @@
   "cheek/r-cheek-volume-incr": 0.5,
   "head/head-fat-incr": 0.3,
   "nose/nose-volume-decr": 0.0,
-  "nose/nose-greek-incr": 0.3,
-  "nose/nose-curve-concave": 0.0,
+  "nose/nose-greek-incr": 0.0,
   "nose/nose-septumangle-decr": 0.0,
   "nose/nose-point-width-incr": 0.0,
   "nose/nose-volume-incr": 0.0,
@@ -226,7 +227,9 @@
   "nose/nose-width1-incr": 0.0,
   "nose/nose-width2-incr": 0.0,
   "nose/nose-curve-convex": 0.0,
-  "nose/nose-hump-incr": 0.0
+  "nose/nose-hump-incr": 0.0,
+  "chin/chin-prominent-incr": 0.6,
+  "chin/chin-prognathism-incr": 0.6
  },
  "brow_paint_dy": [
   -0.004,
@@ -238,7 +241,7 @@
    1.5
   ],
   "tip": [
-   0.0515,
+   0.0495,
    1.5
   ],
   "glabella": [
