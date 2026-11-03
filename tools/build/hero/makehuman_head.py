@@ -181,6 +181,36 @@ def warp(Y, earw=None, nosew=None):
     ub = w.get('upper_lip_back', 0.0)
     if ub:
         Y[:, 2] -= ub * _ss(-0.046, -0.054, rel) * _ss(-0.071, -0.064, rel) * _ss(0.040, 0.022, ax) * front
+    # lower-jaw taper: the jawline sweeps into a round U toward the chin instead of square jowl corners
+    jt = w.get('jaw_taper', 0.0)
+    if jt:
+        Y[:, 0] *= 1 - jt * _ss(-0.085, -0.135, rel) * _ss(0.005, 0.035, ax) * _ss(-0.02, 0.03, Y[:, 2] - P.HEAD_CZ)
+    # chin ball: a smooth, full, forward-rounded chin pad (client profile), filling the lip-chin fold
+    cb = w.get('chin_ball', 0.0)
+    if cb:
+        g = np.exp(-((rel - w.get('chin_ball_y', -0.103)) / 0.017) ** 2 - (Y[:, 0] / 0.022) ** 2)
+        Y[:, 2] += cb * g * _ss(-0.01, 0.04, Y[:, 2] - P.HEAD_CZ)
+    # rounded chin: pull the chin's corners onto an ellipsoid inside it (round in profile and from the front)
+    cr = w.get('chin_round', 0.0)
+    if cr:
+        mid = (ax < 0.003) & (rel < -0.085) & (rel > -0.14) & (Y[:, 2] > P.HEAD_CZ + 0.03)
+        if mid.any():
+            q = Y[mid]
+            pog = q[np.argmax(q[:, 2])]
+            low = q[q[:, 2] > pog[2] - 0.03]
+            men = low[np.argmin(low[:, 1])]
+            R = max(0.5 * (pog[1] - men[1]) + 0.006, 0.012)
+            c = np.array([0.0, men[1] + R, pog[2] - R])
+            Rx = w.get('chin_round_width', 0.026)
+            e = np.sqrt((Y[:, 0] / Rx) ** 2 + ((Y[:, 1] - c[1]) / R) ** 2 + ((Y[:, 2] - c[2]) / R) ** 2)
+            wt = cr * _ss(0.050, 0.025, ax) * _ss(c[1] + 0.6 * R, c[1] - 0.2 * R, Y[:, 1]) * _ss(c[2] - 1.2 * R, c[2] - 0.4 * R, Y[:, 2])
+            f = np.where(e > 1, 1 - wt * (1 - 1 / np.maximum(e, 1e-9)), 1.0)
+            Y = c + (Y - c) * f[:, None]
+            print(f'chin_round: R {R*1000:.1f} mm, centre y {c[1]:.4f} z {c[2]:.4f}')
+    # mouth up: the visible mouth seam sat ~4 mm low (mouth-trans-up is already maxed in the fit)
+    mu = w.get('mouth_up', 0.0)
+    if mu:
+        Y[:, 1] += mu * _ss(-0.044, -0.058, rel) * _ss(-0.125, -0.088, rel) * _ss(0.060, 0.040, ax) * _ss(-0.01, 0.04, Y[:, 2] - P.HEAD_CZ)
     # crown: a taller dome (client's skull is higher above the hairline)
     Y[:, 1] += w.get('dome', 0.0) * _ss(0.065, 0.105, rel)
     # chin: stretch the face below the mouth line downward (front part only), fading out at the neck
@@ -359,7 +389,9 @@ def build():
     subn = zmin(tip[1] - 0.004, tip[1] - 0.03)
     ulip = zmax(subn[1] - 0.004, subn[1] - 0.025)
     llip = zmax(ulip[1] - 0.008, ulip[1] - 0.035)
-    stom = zmin(ulip[1], llip[1])
+    outer = prof[prof[:, 2] > max(ulip[2], llip[2]) - 0.006]              # outer lip surface only (not the mouth cavity)
+    q_ = outer[(outer[:, 1] < ulip[1]) & (outer[:, 1] > llip[1])]
+    stom = q_[np.argmin(q_[:, 2])] if len(q_) else zmin(ulip[1], llip[1])
     pogo = zmax(llip[1] - 0.012, llip[1] - 0.06)
     under = prof[(prof[:, 1] < pogo[1]) & (prof[:, 1] > pogo[1] - 0.05)]
     # menton: lowest chin point still well in front of the neck

@@ -222,15 +222,15 @@ else:
     tint = np.array([0.22, 0.145, 0.13])
     e2 = e * (1 - iris) + (lum * 1.25 * tint / tint.mean()) * iris          # near black-brown iris
     white = np.clip((lum - 0.55) / 0.2, 0, 1) * (1 - iris)
-    e2 = e2 * (1 - white) + e2 * np.array([0.50, 0.39, 0.37]) * white
+    e2 = e2 * (1 - white) + e2 * np.array([0.54, 0.45, 0.42]) * white
     # pinker, darker sclera toward the eye corners (1.5-2.4 iris radii from each iris centre)
     for _cx, _cy in ((721.0, 299.7), (295.0, 721.7)):
         _r = np.hypot(_xx - _cx, _yy - _cy) / 118.0
         _k = np.clip((_r - 1.5) / 0.9, 0, 1)[..., None] * (1 - iris)
-        e2 = e2 * (1 - _k) + e2 * np.array([0.80, 0.66, 0.66]) * _k            # not paper-white sclera
+        e2 = e2 * (1 - _k) + e2 * np.array([0.92, 0.86, 0.84]) * _k            # not paper-white sclera
     from texlib import save_rgb as _sv
     _sv(os.path.join(TEXDIR, 'Eyes_albedo.jpg'), np.clip(e2, 0, 1), quality=94)
-    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.30))
+    eyes.data.materials.append(image_material('M_Eyes', os.path.join(TEXDIR, 'Eyes_albedo.jpg'), None, 0.12))
 log('Eyes', len(_mh['EV']))
 
 def build_hair():
@@ -359,7 +359,7 @@ def hair_cap():
 
 capV, capF = hair_cap()
 hair = assemble('Hair', [dict(name='cap', V=capV, F=capF, W=WT.rigid(capV, 'Head')), sub('bun', *load('bun'), 2400, rigid_head)],
-                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.58, normal=0.25, orm_paint=dispatch(PT.hair_roughness, PT.bun_roughness), detail_sigma=2.0, color=(0.15, 0.13, 0.11),
+                dispatch(PT.paint_hair, PT.paint_bun), size=2048, rough=0.60, normal=0.15, orm_paint=dispatch(PT.hair_roughness, PT.bun_roughness), detail_sigma=2.0, color=(0.15, 0.13, 0.11),
                 ao=dict(rays=24, max_dist=0.02, strength=0.4))
 
 # ---------------------------------------------------------------- clothing
