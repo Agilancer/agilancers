@@ -87,9 +87,19 @@ function decodeBase64(txt) {
 }
 async function loadModel(file) {
   if (!window.AGILANCER_B64 && !q.has('b64')) return loader.loadAsync(BASE + file);
-  const res = await fetch(BASE + file + '.b64.txt');
-  if (!res.ok) throw new Error(`could not load ${file} (${res.status})`);
-  return loader.parseAsync(decodeBase64(await res.text()), BASE);
+  // large models are split into "<file>.b64.0.txt", ".b64.1.txt", ... (hosts with a per-file size limit)
+  let txt = '';
+  for (let i = 0; ; i++) {
+    const part = await fetch(`${BASE}${file}.b64.${i}.txt`);
+    if (!part.ok) break;
+    txt += await part.text();
+  }
+  if (!txt) {
+    const res = await fetch(BASE + file + '.b64.txt');
+    if (!res.ok) throw new Error(`could not load ${file} (${res.status})`);
+    txt = await res.text();
+  }
+  return loader.parseAsync(decodeBase64(txt), BASE);
 }
 const setLoading = (t) => { document.getElementById('loading-text').textContent = t; };
 setLoading('Loading hero…');
