@@ -81,7 +81,7 @@
  },
  "morph_add": {
   "head/head-square": 0.15,
-  "neck/neck-double-incr": 0.5,
+  "neck/neck-double-incr": 0.85,
   "forehead/forehead-temple-incr": 0.3,
   "eyes/r-eye-eyefold-down": 0.8,
   "eyes/l-eye-eyefold-down": 0.8,
@@ -100,7 +100,8 @@
   "nose/nose-width2-decr": 0.5,
   "nose/nose-width1-decr": 0.7,
   "nose/nose-hump-decr": 0.6,
-  "nose/nose-curve-concave": 0.3
+  "nose/nose-curve-concave": 0.3,
+  "chin/chin-width-decr": 0.4
  },
  "eyeball_inward": 0.0015,
  "skin": {
@@ -201,7 +202,7 @@
  "warp": {
   "cranium_x": 0.16,
   "jaw_x": 0.14,
-  "chin_drop": 0.008,
+  "chin_drop": 0.004,
   "dome": 0.004,
   "lower_lid_drop": 0.0045,
   "bridge_narrow": 0.0,
@@ -228,8 +229,9 @@
   "nose/nose-width2-incr": 0.0,
   "nose/nose-curve-convex": 0.0,
   "nose/nose-hump-incr": 0.0,
-  "chin/chin-prominent-incr": 0.6,
-  "chin/chin-prognathism-incr": 0.6
+  "chin/chin-prominent-incr": 0.15,
+  "chin/chin-prognathism-incr": 0.15,
+  "chin/chin-width-incr": 0.0
  },
  "brow_paint_dy": [
   -0.004,

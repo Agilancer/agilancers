@@ -160,7 +160,7 @@ def warp(Y, earw=None, nosew=None):
     kc = w.get('cranium_x', 0.0) * _ss(-0.005, 0.07, rel)
     side_c = _ss(0.045, 0.07, ax) * (1 - _ss(0.025, 0.055, rel)) + _ss(0.025, 0.055, rel)
     # jaw/jowls: x grows below the cheekbones, fading out on the neck; the mouth/chin centre stays put
-    kj = w.get('jaw_x', 0.0) * _ss(-0.005, -0.04, rel) * _ss(-0.150, -0.115, rel) * _ss(0.025, 0.060, ax)
+    kj = w.get('jaw_x', 0.0) * _ss(-0.005, -0.04, rel) * _ss(-0.125, -0.095, rel) * _ss(0.025, 0.060, ax)
     if earw is not None:
         kj = kj * (1 - earw)                         # the ears keep their own shape/position
     kb = 0.0
@@ -177,7 +177,7 @@ def warp(Y, earw=None, nosew=None):
     # underbite: lower lip, lip-chin fold and chin forward (below the mouth line), fading into the jaw and neck
     mf = w.get('mandible_forward', 0.0)
     if mf:
-        Y[:, 2] += mf * _ss(-0.064, -0.071, rel) * _ss(-0.150, -0.118, rel) * _ss(0.055, 0.030, ax) * front
+        Y[:, 2] += mf * _ss(-0.064, -0.071, rel) * _ss(-0.135, -0.105, rel) * _ss(0.050, 0.025, ax) * front
     ub = w.get('upper_lip_back', 0.0)
     if ub:
         Y[:, 2] -= ub * _ss(-0.046, -0.054, rel) * _ss(-0.071, -0.064, rel) * _ss(0.040, 0.022, ax) * front

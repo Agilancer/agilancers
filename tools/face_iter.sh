@@ -13,6 +13,7 @@ $PY -I tools/build/hero/mh_landmarks.py > /dev/null
 REBAKE=Head,Hair $PY -I tools/build/hero/build_hero.py > "$OUT/build.log" 2>&1
 HEADVID=${HEADVID:?} python3 tools/face_compare.py "$OUT/compare.jpg" "$OUT"
 HEADVID=$HEADVID python3 tools/nose_compare.py "$OUT"
+HEADVID=$HEADVID python3 tools/nose_compare.py "$OUT" chin
 HEADVID=$HEADVID python3 tools/profile_compare.py "$OUT" > /dev/null
 cp tools/build/hero/face_tweaks.json "$OUT/"
 echo "iteration rendered: $OUT"
