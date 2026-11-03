@@ -292,7 +292,7 @@ def _brow_mask(x, y, z, side):
     ax_ = sg * x
     t = (ax_ - abs(bi[0]) + 0.006) / (abs(bo[0]) - abs(bi[0]) + 0.008)
     yc = bi[1] + (bo[1] - bi[1]) * t + 0.0018 * np.sin(np.clip(t, 0, 1) * np.pi)
-    half = np.interp(t, [-0.05, 0.12, 0.45, 0.8, 1.02], [0.0016, 0.0031, 0.0033, 0.0026, 0.0010])
+    half = np.interp(t, [-0.05, 0.12, 0.45, 0.8, 1.02], [0.0013, 0.0025, 0.0027, 0.0021, 0.0008])
     inside = smoothstep(-0.04, 0.16, t) * smoothstep(1.08, 0.90, t) * (0.5 + 0.5 * smoothstep(0.05, 0.20, t))
     feather = np.where(y > yc, 0.0045, 0.0020)                      # soft top edge, crisper lower edge
     across = smoothstep(half + feather, half - 0.0008, np.abs(y - yc))
@@ -434,7 +434,7 @@ def clipped_hair(Pt, base, dens):
 def _lip_masks(Pt):
     x, y, z = Pt.T
     st, ml = _lm('stomion'), _lm('mouth_l')
-    hw = abs(ml[0]) + 0.0015
+    hw = abs(ml[0]) + 0.0005
     u = np.clip(np.abs(x) / hw, 0, 1.5)
     dy = y - st[1]
     hu = 0.0050 * np.clip(1 - u, 0, 1) ** 1.1                      # upper lip red tapers to the corners

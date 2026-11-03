@@ -71,7 +71,11 @@ def write_maps(path_base, rgb, mask, normal_strength=None, detail_sigma=4.0, jpg
     save_rgb(path_base + '_albedo' + ext, rgb)
     out = {'albedo': path_base + '_albedo' + ext}
     if normal_strength:
-        n = normal_from_albedo(rgb, strength=normal_strength, detail_sigma=detail_sigma)
+        # flat normals within a few texels of UV island borders: the padded colour there would make a
+        # ridge along every seam (e.g. a streak down the side of the nose)
+        from scipy import ndimage as _nd
+        inner = _nd.gaussian_filter(_nd.binary_erosion(mask > 0.5, iterations=3).astype(np.float32), 1.2)
+        n = normal_from_albedo(rgb, strength=normal_strength, detail_sigma=detail_sigma, mask=inner)
         save_rgb(path_base + '_normal.jpg', n, quality=93)
         out['normal'] = path_base + '_normal.jpg'
     return out
